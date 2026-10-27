@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+body { margin: 0; background: #11100f; color: #f4f0eb; font-family: Arial, Helvetica, sans-serif; }
+button, input, select, textarea { font: inherit; }
+::selection { background: #c87945; color: #11100f; }
