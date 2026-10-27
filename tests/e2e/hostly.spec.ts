@@ -39,14 +39,14 @@ async function open(page: Page, overview: unknown = OVERVIEW) {
 
 test("command center shows the queue, incidents, work and the agent workforce", async ({ page }) => {
   await open(page);
-  await expect(page.getByText("Approval queue (2)")).toBeVisible();
-  await expect(page.getByText("Occupancy, next 30 days").locator("..")).toContainText("50%");
+  await expect(page.getByText("Waiting for your OK (2)")).toBeVisible();
+  await expect(page.getByText("Nights booked, next 30 days").locator("..")).toContainText("50%");
   await expect(page.getByText("Double booking at KIS-02")).toBeVisible();
   await expect(page.getByText("Turnover clean · KIS-01")).toBeVisible();
   await expect(page.getByText("96% of 50")).toBeVisible();
   if (process.env.HOSTLY_SHOT) await page.screenshot({ path: process.env.HOSTLY_SHOT, fullPage: true });
-  // Human-only actions can't be raised above their ceiling (L1, draft).
-  await expect(page.locator("tr", { hasText: "sensitive reply" }).locator("option")).toHaveText(["L0 Observe", "L1 Draft"]);
+  // Human-only actions can't be raised above "write a draft".
+  await expect(page.locator("tr", { hasText: "Refunds and complaints" }).locator("option")).toHaveText(["Only watch and tell me", "Write a draft, I approve"]);
 });
 
 test("approving an edited draft sends the edited text", async ({ page }) => {
