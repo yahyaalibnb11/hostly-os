@@ -73,3 +73,29 @@ test("without database keys it says so", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("The database isn't connected")).toBeVisible();
 });
+
+test("adding a listing sends its prices and Airbnb calendar link", async ({ page }) => {
+  await open(page);
+  const saved: unknown[] = [];
+  let list: unknown[] = [];
+  await page.route("**/api/hostly/properties", async r => {
+    if (r.request().method() === "POST") {
+      saved.push(r.request().postDataJSON());
+      list = [{ id: "p1", code: "LAKE-NONA", name: "Lake Nona Villa", market: "US-FL", city: "Orlando", status: "onboarding", base_price: 180, min_price: 120, max_price: 350, calendar_urls: { airbnb: "https://www.airbnb.com/calendar/ical/1.ics" } }];
+      return r.fulfill({ json: { property: list[0] } });
+    }
+    return r.fulfill({ json: { properties: list } });
+  });
+  await page.getByRole("button", { name: "Listings" }).click();
+  await expect(page.getByText("No listings yet")).toBeVisible();
+  await page.getByRole("button", { name: "+ Add listing" }).click();
+  await page.getByLabel("Name").fill("Lake Nona Villa");
+  await page.getByLabel("Normal").fill("180");
+  await page.getByLabel("Lowest").fill("120");
+  await page.getByLabel("Highest").fill("350");
+  await page.getByLabel("Airbnb calendar link").fill("https://www.airbnb.com/calendar/ical/1.ics");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Listing added.")).toBeVisible();
+  await expect(page.getByText("Lake Nona Villa")).toBeVisible();
+  expect(saved[0]).toMatchObject({ name: "Lake Nona Villa", base_price: "180", min_price: "120", max_price: "350", calendar_urls: { airbnb: "https://www.airbnb.com/calendar/ical/1.ics" } });
+});

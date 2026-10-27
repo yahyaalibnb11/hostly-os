@@ -2,12 +2,14 @@ import { errorResponse, HttpError } from "@/lib/server/auth";
 import { processBatch } from "@/lib/hostly/engine";
 import { serverExecutors } from "@/lib/hostly/executors";
 import { cronOk, hostlyStore } from "@/lib/hostly/server";
+import { syncCalendars } from "@/lib/hostly/calendar-sync";
+import { adminClient } from "@/lib/server/auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 // The scheduler's entry point (Authorization: Bearer CRON_SECRET).
-// Every run: retry due events. With ?daily=1 (once each morning): queue each live property's price review
+// Every run: pull the listings' channel calendars, then retry due events. With ?daily=1 (once each morning): queue each live property's price review
 // and the Exec Copilot's morning brief. The external ids carry the date, so a second daily call is harmless.
 export async function GET(req: Request) {
   try {
@@ -24,8 +26,9 @@ export async function GET(req: Request) {
       const b = await store.insertEvent({ source: "scheduler", external_id: `brief:${day}`, type: "brief.daily", payload: {} });
       if (!b.duplicate) queued.push("brief.daily");
     }
-    const report = await processBatch(store, { limit: 50, executors: serverExecutors() });
-    return Response.json({ queued, report });
+    const calendars = await syncCalendars(adminClient(), store);
+    const report = await processBatch(store, { limit: 100, executors: serverExecutors() });
+    return Response.json({ queued, calendars, report });
   } catch (e) {
     return errorResponse(e);
   }
