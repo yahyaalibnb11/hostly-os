@@ -1,0 +1,3 @@
+{
+  "crons": [{ "path": "/api/hostly/cron?daily=1", "schedule": "0 10 * * *" }]
+}

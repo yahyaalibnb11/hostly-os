@@ -1,0 +1,225 @@
+<title>Hostly Solo Host</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: one-person app. Top bar, tab row, one screen at a time. "Today" is a short to-do list with one big button per item. */
+:root{
+  --bg:#f5f3ef; --panel:#fff; --sunk:#eee9e1; --line:#ddd6cb; --fg:#221d18; --muted:#6f665b;
+  --accent:#c2551f; --accent-ink:#fff; --accent-soft:#f6e3d8;
+  --ok:#2f7a4f; --ok-soft:#dcefe2; --warn:#9a620a; --warn-soft:#f6ead2; --bad:#b3261e; --bad-soft:#f8dcd9;
+  --display:"Bricolage Grotesque",Georgia,serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#171411; --panel:#211d19; --sunk:#2b261f; --line:#3a332b; --fg:#f1ebe3; --muted:#a69a8c;
+  --accent:#ef8a4f; --accent-ink:#1b120c; --accent-soft:#3d2618;
+  --ok:#7fcf9c; --ok-soft:#1f3a29; --warn:#e8b45a; --warn-soft:#3b2e15; --bad:#f08a80; --bad-soft:#43201d; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#171411; --panel:#211d19; --sunk:#2b261f; --line:#3a332b; --fg:#f1ebe3; --muted:#a69a8c;
+  --accent:#ef8a4f; --accent-ink:#1b120c; --accent-soft:#3d2618;
+  --ok:#7fcf9c; --ok-soft:#1f3a29; --warn:#e8b45a; --warn-soft:#3b2e15; --bad:#f08a80; --bad-soft:#43201d; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--body)}
+.wrap{max-width:860px;margin:0 auto;padding-block:16px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:14px}
+.banner{background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:8px 12px;font-size:13px}
+header{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+h1{font:800 26px/1 var(--display);margin:0}
+h1 span{color:var(--accent);font-weight:600}
+.hello{color:var(--muted);font-size:14px}
+nav{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+nav button{white-space:nowrap}
+nav button[aria-selected="true"]{background:var(--fg);color:var(--bg)}
+button{font:600 14px var(--body);border:0;border-radius:8px;padding:9px 14px;cursor:pointer;background:var(--sunk);color:var(--fg)}
+button.go{background:var(--accent);color:var(--accent-ink)}
+button.small{padding:6px 10px;font-size:13px}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h2{font:700 20px var(--display);margin:4px 0 0}
+.lead{color:var(--muted);margin:0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat b{display:block;font:500 22px var(--mono);font-variant-numeric:tabular-nums}
+.stat small{color:var(--muted);font-size:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:10px;min-width:0}
+.list{display:grid;gap:10px}
+.top{display:flex;justify-content:space-between;gap:8px;align-items:start;flex-wrap:wrap}
+.what{font-weight:600}
+.why{font-size:13px;color:var(--muted)}
+.badge{font:600 11px var(--body);text-transform:uppercase;letter-spacing:.05em;padding:3px 8px;border-radius:99px;white-space:nowrap}
+.b-urgent{background:var(--bad-soft);color:var(--bad)} .b-reply{background:var(--accent-soft);color:var(--accent)} .b-ok{background:var(--ok-soft);color:var(--ok)} .b-info{background:var(--sunk);color:var(--muted)}
+.quote{background:var(--sunk);border-radius:8px;padding:9px 11px;font-size:14px}
+textarea,input,select{font:14px var(--body);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+textarea{min-height:80px;resize:vertical}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.done{color:var(--ok);font-weight:500}
+.empty{text-align:center;padding:24px;color:var(--muted)}
+.auto{font-size:13px;color:var(--muted);display:grid;gap:4px}
+.auto li{list-style:none}
+.auto ul{margin:0;padding:0;display:grid;gap:4px}
+/* calendar */
+.cal{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.cal table{border-collapse:collapse;font-size:12px;min-width:640px;width:100%}
+.cal th,.cal td{border-bottom:1px solid var(--line);padding:6px 4px;text-align:center}
+.cal th:first-child,.cal td:first-child{text-align:left;padding-left:10px;white-space:nowrap;position:sticky;left:0;background:var(--panel);font-weight:500}
+.cal th{font:500 11px var(--mono);color:var(--muted)}
+.bk{display:block;height:18px;border-radius:4px;background:var(--accent-soft)}
+.bk.in{background:var(--accent)}
+.bk.clash{background:var(--bad)}
+.legend{display:flex;gap:12px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:4px}
+/* listings */
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.lst .name{font-weight:600}
+.lst .row{display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}
+.lst .row b{color:var(--fg);font-family:var(--mono);font-weight:500}
+.bar{height:6px;background:var(--sunk);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ok)}
+/* autopilot */
+.sw{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.sw:first-of-type{border-top:0}
+.seg{display:flex;background:var(--sunk);border-radius:8px;padding:3px;flex-shrink:0}
+.seg button{background:transparent;padding:6px 10px;font-size:13px}
+.seg button[aria-pressed="true"]{background:var(--panel);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.lock{font-size:12px;color:var(--muted);flex-shrink:0}
+@media (max-width:520px){.sw{flex-direction:column;align-items:stretch}}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:9px 14px;border-radius:8px;font-size:14px;max-width:calc(100% - 32px)}
+</style>
+
+<div class="wrap">
+  <div class="banner">Demo with <b>sample data</b> for a one-person host with 12 listings. Nothing is sent and nothing is connected to Ember OS.</div>
+  <header>
+    <div><h1>HOSTLY <span>Solo</span></h1><div class="hello" id="hello"></div></div>
+    <button class="small" id="night">Night mode</button>
+  </header>
+  <nav role="tablist" id="tabs"></nav>
+  <main id="view"></main>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function toast(t){const e=$("toast");e.textContent=t;e.hidden=false;clearTimeout(e._t);e._t=setTimeout(()=>e.hidden=true,2600)}
+
+const TABS=[["today","Today"],["inbox","Inbox"],["calendar","Calendar"],["listings","Listings"],["outreach","Find owners"],["autopilot","Autopilot"]];
+let tab="today";
+
+const listings=[
+ ["Lake Nona Pool Villa","Orlando FL",82,4120,"$189"],["Kissimmee 4BR Disney Home","Kissimmee FL",76,5340,"$212"],
+ ["ChampionsGate Resort Condo","Davenport FL",69,2890,"$145"],["Windsor Hills 6BR","Kissimmee FL",88,7810,"$298"],
+ ["Celebration Townhouse","Celebration FL",61,2210,"$132"],["Downtown Orlando Loft","Orlando FL",73,2650,"$118"],
+ ["Smoky View Cabin","Gatlinburg TN",79,3980,"$176"],["Pigeon Forge Hot Tub Cabin","Pigeon Forge TN",84,4460,"$195"],
+ ["Gatlinburg Creekside A-Frame","Gatlinburg TN",71,3120,"$164"],["Sevierville Family Lodge","Sevierville TN",58,2740,"$221"],
+ ["Wears Valley Mountain Cabin","Sevierville TN",66,2980,"$171"],["Reunion Golf Villa","Kissimmee FL",74,3560,"$203"],
+];
+
+let todo=[
+ {id:1,kind:"urgent",tag:"Fix now",what:"Two bookings on the same nights",where:"Kissimmee 4BR Disney Home · Dec 12–14",why:"Airbnb and Vrbo both booked it. The system blocked the second one and kept the first.",btn:"Message the Vrbo guest",draft:"Hi Tom, I'm very sorry. There was a calendar error and these dates are no longer free. I can offer you Reunion Golf Villa nearby for the same price, or a full refund. Which do you prefer?"},
+ {id:2,kind:"reply",tag:"Guest reply",what:"Sarah asks about early check-in",where:"Lake Nona Pool Villa · arrives tomorrow",quote:"Hi! We land at 11am. Can we check in early?",why:"Cleaner finishes at 1pm. Normal check-in is 4pm.",btn:"Send reply",draft:"Hi Sarah! Normal check-in is 4pm, but the cleaner should finish at 1pm. I'll message you by 12:30 to confirm if 2pm works. Safe travels!"},
+ {id:3,kind:"reply",tag:"Price",what:"Raise price for Christmas week",where:"Windsor Hills 6BR · Dec 22–29",why:"Nearby homes are 85% booked. Suggested $298 → $349 a night. Inside your limit ($200–$400).",btn:"Use $349"},
+ {id:4,kind:"reply",tag:"Owner lead",what:"Email Mike about his cabin",where:"Gatlinburg · 4.8★ but only 44% booked",why:"Good reviews, low bookings, no co-host. Score 84 of 100.",btn:"Send email",draft:"Hi Mike,\n\nYour Gatlinburg cabin has great reviews but fewer booked nights than cabins nearby. I manage a small number of homes personally and could help with pricing and guests.\n\nWant a free check of your listing?\n\nYahya"},
+ {id:5,kind:"info",tag:"Money",what:"Guest wants a refund",where:"Sevierville Family Lodge",quote:"Hot tub didn't heat for one night. Can I get something back?",why:"Refunds are always your decision. Autopilot never decides money.",btn:"Offer $50 back",alt:"Say no politely"},
+];
+
+const done_auto=["Sent check-in instructions to 3 guests","Booked cleaners for 4 checkouts","Sent 5 thank-you messages after checkout","Updated prices on 9 listings (small changes)","Asked 2 guests for a review"];
+
+const inbox=[
+ ["Sarah M.","Lake Nona Pool Villa","Can we check in early?","Waiting for you"],
+ ["James R.","Smoky View Cabin","Where do we park?","Autopilot replied"],
+ ["Priya K.","Windsor Hills 6BR","Thank you, amazing stay!","Autopilot replied"],
+ ["Carlos D.","Downtown Orlando Loft","Is there a crib?","Autopilot replied"],
+ ["Emma W.","Sevierville Family Lodge","Hot tub didn't heat...","Waiting for you"],
+];
+
+const owners=[
+ ["Mike T.","Gatlinburg cabin, 4.8★, 44% booked",84,"Email ready"],
+ ["Linda S.","Kissimmee 5BR, 4.5★, 51% booked",78,"Email ready"],
+ ["Robert H.","Pigeon Forge cabin, new listing",66,"Wait 3 days"],
+ ["Angela P.","Orlando condo, 4.9★, 81% booked",41,"Skip, doing well"],
+];
+
+let autopilot=[
+ ["Check-in instructions","Sends door code and directions the day before arrival",1,false],
+ ["Easy guest questions","Wifi, parking, checkout time, things written in your house manual",1,false],
+ ["Cleaning bookings","Books your cleaner for every checkout",1,false],
+ ["Small price changes","Up to 10% a day, never outside your min and max",1,false],
+ ["Review requests","Asks happy guests for a review after checkout",1,false],
+ ["First email to owners","Writes to good leads you found",0,false],
+ ["Refunds and money","Always asks you",0,true],
+ ["Complaints and emergencies","Gas, fire, injury, police: you get a call alert right away",0,true],
+];
+
+function renderTabs(){
+ $("tabs").innerHTML=TABS.map(([k,l])=>`<button role="tab" aria-selected="${k===tab}" data-k="${k}">${l}${k==="today"?` (${todo.filter(t=>!t.done).length})`:""}</button>`).join("");
+ document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>{tab=b.dataset.k;render()});
+}
+
+function viewToday(){
+ const open=todo.filter(t=>!t.done);
+ return `<div class="list">
+  <h2>${open.length?`${open.length} things need you today`:"You're done for today"}</h2>
+  <p class="lead">Everything else is handled by Autopilot. Most items take one tap.</p>
+  <div class="stats">
+   <div class="stat"><b>12</b><small>Listings</small></div>
+   <div class="stat"><b>4</b><small>Check-ins today</small></div>
+   <div class="stat"><b>74%</b><small>Booked this month</small></div>
+   <div class="stat"><b>$45,860</b><small>Earned this month</small></div>
+  </div>
+  ${todo.map(t=>`<div class="card">
+   <div class="top"><div><div class="what">${esc(t.what)}</div><div class="why">${esc(t.where)}</div></div><span class="badge b-${t.kind}">${t.tag}</span></div>
+   ${t.done?`<div class="done">✓ ${esc(t.done)}</div>`:`
+   ${t.quote?`<div class="quote">“${esc(t.quote)}”</div>`:""}
+   <div class="why">${esc(t.why)}</div>
+   ${t.draft?`<textarea id="d${t.id}" aria-label="Message">${esc(t.draft)}</textarea>`:""}
+   <div class="btns"><button class="go" data-id="${t.id}" data-a="go">${t.btn}</button>${t.alt?`<button data-id="${t.id}" data-a="alt">${t.alt}</button>`:""}<button data-id="${t.id}" data-a="later">Later</button></div>`}
+  </div>`).join("")}
+  <div class="card auto"><b style="color:var(--fg)">Autopilot did this today without you</b><ul>${done_auto.map(d=>`<li>✓ ${d}</li>`).join("")}</ul></div>
+ </div>`;
+}
+function viewInbox(){
+ return `<div class="list"><h2>Inbox</h2><p class="lead">All guest messages from Airbnb, Vrbo and WhatsApp in one place.</p>
+ ${inbox.map(([n,l,m,s])=>`<div class="card"><div class="top"><div><div class="what">${n}</div><div class="why">${l}</div></div><span class="badge ${s.startsWith("Waiting")?"b-reply":"b-ok"}">${s}</span></div><div class="quote">“${esc(m)}”</div></div>`).join("")}</div>`;
+}
+function viewCalendar(){
+ const days=[...Array(14)].map((_,i)=>{const d=new Date();d.setDate(d.getDate()+i);return d});
+ const pat=(r)=>days.map((_,i)=>{const v=(r*7+i*3)%10;return v<7?(i===0||(r+i)%5===0?"in":"b"):"";});
+ return `<div class="list"><h2>Calendar</h2><p class="lead">Next 14 days for all 12 listings. Airbnb and Vrbo stay in sync.</p>
+ <div class="legend"><span><i style="background:var(--accent-soft)"></i>Booked</span><span><i style="background:var(--accent)"></i>Check-in day</span><span><i style="background:var(--bad)"></i>Double booking</span></div>
+ <div class="cal"><table><thead><tr><th>Listing</th>${days.map(d=>`<th>${d.getDate()}</th>`).join("")}</tr></thead><tbody>
+ ${listings.map(([n],r)=>`<tr><td>${n}</td>${pat(r).map((c,i)=>`<td>${r===1&&(i===4||i===5)?'<span class="bk clash" title="Double booking"></span>':c?`<span class="bk ${c==="in"?"in":""}"></span>`:""}</td>`).join("")}</tr>`).join("")}
+ </tbody></table></div></div>`;
+}
+function viewListings(){
+ return `<div class="list"><h2>Listings</h2><p class="lead">How each home is doing this month.</p><div class="grid2">
+ ${listings.map(([n,c,o,e,p])=>`<div class="card lst"><div><div class="name">${n}</div><div class="why">${c}</div></div>
+ <div class="row"><span>Booked</span><b>${o}%</b></div><div class="bar"><i style="width:${o}%"></i></div>
+ <div class="row"><span>Earned</span><b>$${e.toLocaleString()}</b></div><div class="row"><span>Tonight's price</span><b>${p}</b></div>
+ ${o<62?'<span class="badge b-reply" style="justify-self:start">Needs attention</span>':""}</div>`).join("")}</div></div>`;
+}
+function viewOutreach(){
+ return `<div class="list"><h2>Find owners</h2><p class="lead">Owners whose listings could do better. Autopilot scores them and writes the first email. You press send.</p>
+ <div class="stats"><div class="stat"><b>576</b><small>Leads found</small></div><div class="stat"><b>41</b><small>Emailed</small></div><div class="stat"><b>9</b><small>Replied</small></div><div class="stat"><b>2</b><small>Calls booked</small></div></div>
+ ${owners.map(([n,d,s,a])=>`<div class="card"><div class="top"><div><div class="what">${n}</div><div class="why">${d}</div></div><span class="badge ${s>=75?"b-ok":s>=60?"b-reply":"b-info"}">Score ${s}</span></div><div class="btns"><button class="${a==="Email ready"?"go":""} small" data-lead="${n}">${a==="Email ready"?"Review email":a}</button></div></div>`).join("")}
+ <div class="card"><div class="what">Add an owner</div><input id="ownerUrl" placeholder="Paste their Airbnb link" value="airbnb.com/rooms/52817"><button class="go" id="addOwner">Check and score</button></div></div>`;
+}
+function viewAutopilot(){
+ return `<div class="list"><h2>Autopilot</h2><p class="lead">Choose what happens by itself and what asks you first. Money and emergencies always come to you.</p>
+ <div class="card">${autopilot.map(([n,d,on,locked],i)=>`<div class="sw"><div><div class="what">${n}</div><div class="why">${d}</div></div>
+ ${locked?`<span class="lock">🔒 Always asks you</span>`:`<div class="seg" role="group" aria-label="${n}"><button aria-pressed="${!on}" data-i="${i}" data-v="0">Ask me first</button><button aria-pressed="${!!on}" data-i="${i}" data-v="1">Do it automatically</button></div>`}</div>`).join("")}</div></div>`;
+}
+
+function render(){
+ renderTabs();
+ $("view").innerHTML={today:viewToday,inbox:viewInbox,calendar:viewCalendar,listings:viewListings,outreach:viewOutreach,autopilot:viewAutopilot}[tab]();
+ document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>{
+  const t=todo.find(x=>x.id==b.dataset.id);
+  if(b.dataset.a==="later"){todo=todo.filter(x=>x!==t).concat(t);toast("Moved to the end of the list");render();return}
+  t.done=b.dataset.a==="alt"?"Polite no sent":t.id===3?"Price updated to $349":t.id===5?"$50 offered to Emma":"Sent";
+  toast("Done");render();
+ });
+ document.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>{autopilot[b.dataset.i][2]=+b.dataset.v;toast(b.dataset.v==="1"?"Autopilot will do this by itself":"Autopilot will ask you first");render()});
+ document.querySelectorAll("[data-lead]").forEach(b=>b.onclick=()=>{tab="today";toast("Email draft is in Today");render()});
+ const add=$("addOwner");if(add)add.onclick=()=>{owners.unshift(["New owner","Checked just now, 4.6★, 49% booked",80,"Email ready"]);toast("Scored 80 of 100. Email drafted.");render()};
+}
+const h=new Date().getHours();$("hello").textContent=(h<12?"Good morning":h<18?"Good afternoon":"Good evening")+", Yahya";
+$("night").onclick=()=>{const r=document.documentElement;const dark=r.dataset.theme==="dark"||(!r.dataset.theme&&matchMedia("(prefers-color-scheme: dark)").matches);r.dataset.theme=dark?"light":"dark";$("night").textContent=dark?"Night mode":"Day mode"};
+render();
+</script>
