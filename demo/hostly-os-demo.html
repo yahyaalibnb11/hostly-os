@@ -1,0 +1,248 @@
+<title>Hostly OS Command Center</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: operator console. Header + status pills, KPI strip, then a 2/3 work column (approvals, agents, activity) beside a 1/3 alerts column. */
+:root{
+  --bg:#f5f3ef; --panel:#ffffff; --sunk:#efebe4; --line:#ddd6cb; --fg:#221d18; --muted:#71685d;
+  --accent:#c2551f; --accent-ink:#ffffff; --accent-soft:#f6e3d8;
+  --ok:#2f7a4f; --ok-soft:#dcefe2; --warn:#a2670b; --warn-soft:#f6ead2; --bad:#b3261e; --bad-soft:#f8dcd9;
+  --display:"Bricolage Grotesque",Georgia,serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#171411; --panel:#211d19; --sunk:#2a251f; --line:#3a332b; --fg:#f1ebe3; --muted:#a69a8c;
+  --accent:#ef8a4f; --accent-ink:#1b120c; --accent-soft:#3d2618;
+  --ok:#7fcf9c; --ok-soft:#1f3a29; --warn:#e8b45a; --warn-soft:#3b2e15; --bad:#f08a80; --bad-soft:#43201d; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#171411; --panel:#211d19; --sunk:#2a251f; --line:#3a332b; --fg:#f1ebe3; --muted:#a69a8c;
+  --accent:#ef8a4f; --accent-ink:#1b120c; --accent-soft:#3d2618;
+  --ok:#7fcf9c; --ok-soft:#1f3a29; --warn:#e8b45a; --warn-soft:#3b2e15; --bad:#f08a80; --bad-soft:#43201d; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 var(--body)}
+.wrap{max-width:1200px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:16px}
+.banner{background:var(--warn-soft);color:var(--warn);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:end;gap:12px}
+h1{font:800 30px/1 var(--display);letter-spacing:.02em;margin:0;text-wrap:balance}
+h1 span{color:var(--accent);font-weight:600}
+.sub{color:var(--muted);font-size:13px;margin-top:4px}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{font:500 12px var(--mono);padding:3px 9px;border-radius:99px;background:var(--sunk);color:var(--muted)}
+.pill.on{background:var(--ok-soft);color:var(--ok)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.kpi b{display:block;font:600 24px var(--mono);font-variant-numeric:tabular-nums}
+.kpi small{color:var(--muted);font-size:12px}
+.grid{display:grid;grid-template-columns:2fr 1fr;gap:16px;align-items:start}
+.col{display:grid;gap:16px;min-width:0}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}
+h2{font:600 12px var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 10px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+h2 em{font-style:normal;text-transform:none;letter-spacing:0;font-weight:400}
+.appr{border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;gap:8px;background:var(--bg)}
+.appr+.appr{margin-top:10px}
+.row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:start}
+.title{font-weight:600}
+.tag{font:500 11px var(--mono);padding:2px 7px;border-radius:5px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+.quote{background:var(--sunk);border-radius:6px;padding:8px;font-size:13px}
+.facts{font-size:12px;color:var(--ok)} .guess{font-size:12px;color:var(--warn)}
+textarea,input,select{font:13px var(--body);color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:100%}
+textarea{min-height:90px;resize:vertical}
+button{font:600 13px var(--body);border:0;border-radius:6px;padding:7px 14px;cursor:pointer;background:var(--sunk);color:var(--fg)}
+button.primary{background:var(--accent);color:var(--accent-ink)}
+button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btns{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btns .note{margin-left:auto;font-size:12px;color:var(--muted)}
+.done{font-size:13px;color:var(--ok)} .rej{color:var(--muted)}
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-weight:500;color:var(--muted);font-size:12px;padding:4px 8px 6px 0}
+td{border-top:1px solid var(--line);padding:8px 8px 8px 0;vertical-align:top}
+td small{display:block;color:var(--muted);font-size:12px}
+td select{width:auto}
+.q{font:12px var(--mono);font-variant-numeric:tabular-nums}
+ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.sev{font:600 10px var(--mono);text-transform:uppercase;padding:2px 6px;border-radius:4px;margin-right:6px}
+.sev.critical,.sev.high{background:var(--bad-soft);color:var(--bad)} .sev.medium{background:var(--warn-soft);color:var(--warn)}
+.meta{font-size:12px;color:var(--muted)}
+.task{display:flex;justify-content:space-between;gap:8px}
+.task .meta{white-space:nowrap;font-family:var(--mono)}
+.urgent{color:var(--bad)}
+.log li{display:grid;grid-template-columns:56px 96px 1fr;gap:8px;font-size:13px}
+.log .t{font:12px var(--mono);color:var(--muted)} .log .a{font-weight:600;color:var(--accent);font-size:12px}
+@media (max-width:520px){.log li{grid-template-columns:48px 1fr}.log .a{grid-column:2}.log .s{grid-column:1/-1}}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:var(--sunk);border-radius:5px;padding:3px 8px;font-size:12px}
+form{display:grid;gap:6px}
+.two{display:flex;gap:6px}
+.sim{display:grid;gap:6px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;max-width:calc(100% - 32px)}
+@media (prefers-reduced-motion:no-preference){.appr,.log li{animation:in .25s ease-out}@keyframes in{from{transform:translateY(-3px)}to{transform:none}}}
+</style>
+
+<div class="wrap">
+  <div class="banner">Demo with <b>sample data</b>. This is a preview of the Hostly OS screen. Nothing here is connected to Ember OS or to any live system, and no message is really sent.</div>
+
+  <header>
+    <div>
+      <h1>HOSTLY <span>OS</span></h1>
+      <div class="sub">AI agent command center · owner view</div>
+    </div>
+    <div class="pills" id="pills"></div>
+  </header>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="grid">
+    <div class="col">
+      <section>
+        <h2>Waiting for your approval <em id="pendingCount"></em></h2>
+        <div id="approvals"></div>
+      </section>
+
+      <section>
+        <h2>AI agent workforce <em>autonomy is earned: 97% approved unchanged over 200 decisions</em></h2>
+        <div class="tbl"><table>
+          <thead><tr><th>Agent · action</th><th>Level</th><th>28-day quality</th></tr></thead>
+          <tbody id="agents"></tbody>
+        </table></div>
+      </section>
+
+      <section>
+        <h2>Agent activity</h2>
+        <ul class="log" id="log"></ul>
+      </section>
+    </div>
+
+    <div class="col">
+      <section>
+        <h2>Open incidents</h2>
+        <ul id="incidents"></ul>
+      </section>
+      <section>
+        <h2>Tasks due in 24h</h2>
+        <ul id="tasks"></ul>
+      </section>
+      <section>
+        <h2>Try it: guest message</h2>
+        <div class="sim">
+          <select id="simMsg" aria-label="Sample guest message">
+            <option value="wifi">"What's the wifi password?"</option>
+            <option value="late">"Can we check out at 1pm instead of 11?"</option>
+            <option value="gas">"I smell gas in the kitchen!!"</option>
+            <option value="refund">"The pool was closed, I want a refund."</option>
+          </select>
+          <button class="primary" id="simBtn">Send to Concierge agent</button>
+          <div class="meta">Emergency words are caught by rules before the AI runs. Refunds always go to a person.</div>
+        </div>
+      </section>
+      <section>
+        <h2>US lead pipeline</h2>
+        <div class="chips" id="pipeline"></div>
+        <form id="leadForm" style="margin-top:10px">
+          <input id="leadName" placeholder="Owner name" value="Dana Brooks">
+          <input id="leadUrl" placeholder="Listing URL" value="airbnb.com/rooms/48213">
+          <div class="two">
+            <select id="leadMarket" aria-label="Market"><option>US-FL</option><option>US-TN</option><option>AE</option><option>GB</option><option>PK</option></select>
+            <select id="leadType" aria-label="Lead type"><option value="owner_direct">Owner direct</option><option value="underperforming_listing">Underperforming listing</option><option value="new_listing">New listing</option></select>
+          </div>
+          <button class="primary">Add and score</button>
+        </form>
+      </section>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const LV=["L0 Observe","L1 Draft","L2 Act + review","L3 Act in guardrails","L4 Human only"];
+const AG={field_ops:"Field Ops",outreach:"Outreach",concierge:"Concierge",revenue:"Revenue",exec_copilot:"Exec Copilot"};
+const now=new Date();const hm=m=>{const d=new Date(now.getTime()+m*60000);return d.toTimeString().slice(0,5)};
+
+const pills={database:true,ai:true,whatsapp:true,email:false,pms:false,pricing_engine:false};
+const kpis=[["71%","Occupancy, month to date"],["$214","ADR"],["$152","RevPAN"],["38","Live properties (sample)"],["4","Pending approvals"]];
+let approvals=[
+ {id:1,agent:"concierge",level:"L1",title:"Reply to guest at Brickell Bay 1204 (Miami)",guest:"Hi! What time can we check in tomorrow? We land at 11am.",facts:["Check-in is 4pm","Cleaning finishes 1pm tomorrow"],guess:["Early check-in at 2pm may be possible"],body:"Hi Sarah! Check-in is from 4pm, but your cleaner should be done by 1pm tomorrow. I'll confirm by 12:30 if we can let you in at 2pm. Safe travels!",editable:true},
+ {id:2,agent:"outreach",level:"L1",title:"First email to owner: Gulch Loft (Nashville)",rationale:"Score 82. Listing has 4.6★ but 41% occupancy vs 68% market. No co-host listed.",subject:"Your Gulch loft could earn more",body:"Hi Mike,\n\nI noticed your Gulch loft has great reviews but fewer booked nights than similar places nearby. We co-host 200+ homes and handle pricing, guests and cleaning.\n\nWould a free revenue check be useful?\n\nYahya, Hostly",editable:true},
+ {id:3,agent:"revenue",level:"L1",title:"Raise price: Wynwood Studio 3B, $165 → $189 for Fri–Sat",rationale:"Art Basel weekend demand. Inside owner guardrails ($120–$260). Change is +14.5%, limit is 20%.",editable:false},
+ {id:4,agent:"concierge",level:"L4",title:"Refund request: DHA Phase 6 Villa (Lahore)",guest:"AC stopped working for one night, please refund.",rationale:"Refunds are human only. The agent never decides money.",editable:false,humanOnly:true},
+];
+const agents=[
+ ["field_ops","turnover_tasks","Creates cleaning + inspection on every booking",2,3,"98% of 412"],
+ ["outreach","first_email","Writes the first email to a scored owner lead",1,2,"91% of 64"],
+ ["concierge","guest_reply","Answers routine guest questions",1,3,"95% of 188"],
+ ["concierge","sensitive_reply","Complaints, refunds, damage",1,1,"no decisions yet"],
+ ["revenue","price_change","Daily price inside owner guardrails",1,3,"97% of 120"],
+ ["exec_copilot","daily_brief","Morning brief in English + Roman Urdu",0,0,"n/a"],
+];
+let incidents=[{sev:"high",cat:"double booking",sum:"Airbnb + Vrbo overlap at Gulch Loft, Dec 12–14",by:30},{sev:"medium",cat:"maintenance",sum:"Hot water low at Bahria Town Apt 7",by:180}];
+const tasks=[["Turnover clean: Brickell Bay 1204",95,false],["Pre-arrival message: Wynwood 3B",140,false],["Inspection: Gulch Loft after clash",45,true],["Restock linens: Clifton Sea View",300,false]];
+let log=[[-2,"exec_copilot","Sent morning brief: 3 check-ins, 1 incident, revenue +6% vs last week"],[-9,"field_ops","Booking BK-88213 confirmed, turnover clean created for Dec 9 11:00"],[-14,"revenue","Reviewed 38 properties, 5 price changes proposed, 33 unchanged"],[-21,"outreach","Scored 12 new Florida leads, 3 above 75"],[-35,"field_ops","Double booking blocked by database, incident opened"]];
+const pipeline={new:142,scored:96,contacted:41,replied:9,call_booked:4,signed:1};
+
+function toast(t){const e=$("toast");e.textContent=t;e.hidden=false;clearTimeout(e._t);e._t=setTimeout(()=>e.hidden=true,2600)}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function addLog(agent,s){log.unshift([0,agent,s]);renderLog()}
+
+function renderStatic(){
+ $("pills").innerHTML=Object.entries(pills).map(([k,v])=>`<span class="pill ${v?"on":""}">${v?"●":"○"} ${k.replace("_"," ")}</span>`).join("");
+ $("kpis").innerHTML=kpis.map(([v,l])=>`<div class="kpi"><b>${v}</b><small>${l}</small></div>`).join("");
+ $("agents").innerHTML=agents.map(([a,act,d,l,max,q],i)=>`<tr><td><b>${AG[a]}</b> · ${act.replace(/_/g," ")}<small>${d}</small></td><td><select id="lvl${i}" data-i="${i}" aria-label="Autonomy level">${LV.slice(0,max+1).map((n,j)=>`<option value="${j}" ${j===l?"selected":""}>${n}</option>`).join("")}</select></td><td class="q">${q}</td></tr>`).join("");
+ document.querySelectorAll("#agents select").forEach(s=>s.onchange=()=>{const r=agents[s.dataset.i];toast(`${AG[r[0]]} ${r[1].replace(/_/g," ")} set to ${LV[s.value]}. Saved to audit log.`)});
+ $("tasks").innerHTML=tasks.map(([t,m,u])=>`<li class="task"><span class="${u?"urgent":""}">${t}</span><span class="meta">${hm(m)}</span></li>`).join("");
+ $("pipeline").innerHTML=Object.entries(pipeline).map(([k,v])=>`<span class="chip">${k.replace("_"," ")}: <b>${v}</b></span>`).join("");
+}
+function renderIncidents(){$("incidents").innerHTML=incidents.map(i=>`<li><span class="sev ${i.sev}">${i.sev}</span>${esc(i.sum)}<div class="meta">${i.cat} · respond by ${hm(i.by)}</div></li>`).join("")}
+function renderLog(){$("log").innerHTML=log.slice(0,8).map(([m,a,s])=>`<li><span class="t">${m===0?"now":hm(m)}</span><span class="a">${AG[a]}</span><span class="s">${esc(s)}</span></li>`).join("")}
+function renderApprovals(){
+ const open=approvals.filter(a=>!a.state).length;
+ $("pendingCount").textContent=open?`${open} open`:"all clear";
+ $("approvals").innerHTML=approvals.map(a=>`<div class="appr">
+  <div class="row"><span class="title">${esc(a.title)}</span><span class="tag">${AG[a.agent]} · ${a.level}</span></div>
+  ${a.guest?`<div class="quote">Guest: “${esc(a.guest)}”</div>`:""}
+  ${a.rationale?`<div class="meta">${esc(a.rationale)}</div>`:""}
+  ${a.facts?`<div class="facts">Facts: ${a.facts.map(esc).join(" · ")}</div>`:""}
+  ${a.guess?`<div class="guess">Guesses (check first): ${a.guess.map(esc).join(" · ")}</div>`:""}
+  ${a.state?`<div class="${a.state==="rejected"?"rej":"done"}">${a.state==="rejected"?"Rejected. The agent will learn from this.":a.edited?"Approved with your edits. Sent (demo).":"Approved unchanged. Sent (demo)."}</div>`:`
+  ${a.editable?`${a.subject!=null?`<input id="sub${a.id}" value="${esc(a.subject)}" aria-label="Subject">`:""}<textarea id="body${a.id}" aria-label="Draft">${esc(a.body)}</textarea>`:""}
+  <div class="btns">
+   <button class="primary" data-act="ok" data-id="${a.id}">${a.humanOnly?"Approve refund":"Approve"}</button>
+   <button data-act="no" data-id="${a.id}">Reject</button>
+   <span class="note">${a.humanOnly?"Human only: AI never decides money":a.editable?"Edit the draft before approving if you like":""}</span>
+  </div>`}
+ </div>`).join("");
+ document.querySelectorAll("#approvals button").forEach(b=>b.onclick=()=>decide(+b.dataset.id,b.dataset.act));
+}
+function decide(id,act){
+ const a=approvals.find(x=>x.id===id);
+ if(act==="ok"){const t=$("body"+id);a.edited=!!(t&&t.value!==a.body);a.state="approved";
+  addLog(a.agent,`Approval executed: ${a.title}${a.edited?" (edited by owner)":""}`);toast(a.edited?"Approved with edits. Counted as edited for autonomy.":"Approved unchanged.")}
+ else{a.state="rejected";addLog(a.agent,`Owner rejected: ${a.title}`);toast("Rejected.")}
+ renderApprovals();
+}
+const SIM={
+ wifi:{risk:"low",title:"Reply to guest at Brickell Bay 1204 (Miami)",guest:"What's the wifi password?",facts:["Wifi: BrickellGuest / sunny2026"],body:"Hi! The wifi is BrickellGuest and the password is sunny2026. Enjoy your stay!"},
+ late:{risk:"low",title:"Late checkout request: Wynwood Studio 3B",guest:"Can we check out at 1pm instead of 11?",facts:["Next guest arrives tomorrow, not today"],guess:["1pm checkout looks possible"],body:"Hi! Good news, there's no one checking in today, so 1pm checkout is fine. Please leave the keys on the counter."},
+ gas:{risk:"critical"},
+ refund:{risk:"high"},
+};
+let nextId=10;
+$("simBtn").onclick=()=>{
+ const k=$("simMsg").value,s=SIM[k];
+ if(k==="gas"){incidents.unshift({sev:"critical",cat:"emergency",sum:"Guest reports gas smell, Gulch Loft",by:5});renderIncidents();
+  addLog("concierge","EMERGENCY keyword matched before AI. Critical incident opened, on-call manager paged. No auto-reply.");toast("Emergency caught by rules. Incident opened, a person must respond.");return}
+ if(k==="refund"){approvals.unshift({id:nextId++,agent:"concierge",level:"L4",title:"Refund request: Gulch Loft (Nashville)",guest:"The pool was closed, I want a refund.",rationale:"Refunds are human only. The agent drafted nothing.",humanOnly:true});
+  addLog("concierge","Sensitive message (refund). Routed to owner, no AI reply.");renderApprovals();toast("Refund routed to you. AI never decides money.");return}
+ approvals.unshift({id:nextId++,agent:"concierge",level:"L1",editable:true,...s});
+ addLog("concierge",`Drafted reply (${s.risk} risk), waiting for approval`);renderApprovals();toast("Concierge drafted a reply. Check it above.");
+};
+$("leadForm").onsubmit=e=>{e.preventDefault();
+ const t=$("leadType").value,m=$("leadMarket").value,url=$("leadUrl").value.trim();
+ let sc=40+(t==="underperforming_listing"?25:t==="owner_direct"?15:10)+(m.startsWith("US")?10:0)+(url?5:0);
+ pipeline.scored++;renderStatic();
+ addLog("outreach",`Scored ${$("leadName").value||"new lead"} (${m}): ${sc}/100. ${sc>=75?"First email drafted for approval.":"Kept for nurture."}`);
+ if(sc>=75){approvals.unshift({id:nextId++,agent:"outreach",level:"L1",editable:true,title:`First email to owner: ${$("leadName").value||"new lead"} (${m})`,rationale:`Score ${sc}. Lead type ${t.replace(/_/g," ")}.`,subject:"Quick idea for your rental",body:`Hi ${($("leadName").value||"there").split(" ")[0]},\n\nWe co-host 200+ short-term rentals and help owners earn more with less work. Would a free revenue check on your listing be useful?\n\nYahya, Hostly`});renderApprovals()}
+ toast(`Lead scored ${sc}/100`);
+};
+renderStatic();renderIncidents();renderLog();renderApprovals();
+</script>
