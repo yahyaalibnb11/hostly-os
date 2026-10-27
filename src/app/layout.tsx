@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Hostly OS",
-  description: "AI agent operating system for Hostly's short-term rental co-hosting business.",
+  description: "AI helpers that run your short-term rental listings with you.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

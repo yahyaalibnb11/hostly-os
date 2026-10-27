@@ -19,9 +19,13 @@ type Overview = {
 };
 
 const AGENT_LABEL: Record<string, string> = {
-  field_ops: "Field Ops", outreach: "Outreach", concierge: "Concierge", revenue: "Revenue", exec_copilot: "Exec Copilot",
+  field_ops: "Cleaning helper", outreach: "Owner finder", concierge: "Guest helper", revenue: "Price helper", exec_copilot: "Daily report",
 };
-const LEVEL_LABEL = ["L0 Observe", "L1 Draft", "L2 Act with review", "L3 Act within guardrails", "L4 Human only"];
+const LEVEL_LABEL = ["Only watch and tell me", "Write a draft, I approve", "Do it, I check after", "Do it alone, inside my limits", "Only I can do this"];
+const CONNECTION_LABEL: Record<string, string> = {
+  database: "Database", ai: "AI", whatsapp: "WhatsApp", email: "Email", pms: "Airbnb/Vrbo sync", pricing_engine: "Price tool",
+};
+const SEVERITY_LABEL: Record<string, string> = { emergency: "Emergency", high: "Urgent", medium: "Soon", low: "Later" };
 const sevColor: Record<string, string> = { emergency: "bg-red-600", high: "bg-orange-600", medium: "bg-amber-600", low: "bg-stone-600" };
 const fmtTime = (s?: string) => (s ? new Date(s).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
 const pct = (n: number | null | undefined) => (n == null ? "–" : `${Math.round(Number(n) * 100)}%`);
@@ -115,11 +119,11 @@ export default function HostlyCommandCenter() {
       <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-black tracking-wide">HOSTLY <span className="font-normal text-ember-400">OS</span></h1>
-          <p className="text-xs text-stone-400">AI agent command center · {data?.user.email} ({data?.user.role})</p>
+          <p className="text-xs text-stone-400">Your AI helpers for every listing · {data?.user.email} ({data?.user.role})</p>
         </div>
         <div className="flex flex-wrap gap-1.5 text-xs">
           {Object.entries(data?.connections ?? {}).map(([k, v]) => (
-            <span key={k} className={`rounded-full px-2.5 py-1 ${v ? "bg-emerald-900 text-emerald-200" : "bg-stone-800 text-stone-400"}`}>{v ? "●" : "○"} {k.replace("_", " ")}</span>
+            <span key={k} className={`rounded-full px-2.5 py-1 ${v ? "bg-emerald-900 text-emerald-200" : "bg-stone-800 text-stone-400"}`}>{v ? "●" : "○"} {CONNECTION_LABEL[k] ?? k}</span>
           ))}
           <button onClick={() => sb?.auth.signOut()} className="rounded-full bg-ember-800 px-2.5 py-1 text-ember-400">Sign out</button>
         </div>
@@ -134,13 +138,23 @@ export default function HostlyCommandCenter() {
       )}
 
       {data?.ready && (
+        <div className="mb-4 grid gap-3 text-sm md:grid-cols-3">
+          {[
+            ["1. Helpers do the routine work", "Cleaning bookings, check-in messages, small price changes."],
+            ["2. Important things wait for your OK", "Read the draft, change it if you want, and press Approve."],
+            ["3. Money and danger always come to you", "Refunds, complaints and emergencies are never decided by AI."],
+          ].map(([t, d]) => <div key={t} className="rounded-xl border border-ember-700 bg-ember-900 p-3"><b>{t}</b><div className="text-xs text-stone-400">{d}</div></div>)}
+        </div>
+      )}
+
+      {data?.ready && (
         <div className="grid gap-4 lg:grid-cols-3">
           <div className="grid grid-cols-2 gap-3 lg:col-span-3 md:grid-cols-4">
             {[
-              ["Live properties", String(totals.properties)],
-              ["Occupancy, next 30 days", pct(totals.occupancy)],
-              ["Waiting for you", String(data.approvals?.length ?? 0)],
-              ["Open incidents", String(data.incidents?.length ?? 0)],
+              ["Listings", String(totals.properties)],
+              ["Nights booked, next 30 days", pct(totals.occupancy)],
+              ["Waiting for your OK", String(data.approvals?.length ?? 0)],
+              ["Problems to fix", String(data.incidents?.length ?? 0)],
             ].map(([l, v]) => (
               <div key={l} className="rounded-xl border border-ember-700 bg-ember-900 p-4">
                 <div className="text-2xl font-black">{v}</div>
@@ -150,8 +164,8 @@ export default function HostlyCommandCenter() {
           </div>
 
           <div className="lg:col-span-2">
-            <Card title={`Approval queue (${data.approvals?.length ?? 0})`}>
-              {!data.approvals?.length && <Empty>Nothing waiting. Agents put drafts and price changes here before anything leaves Hostly.</Empty>}
+            <Card title={`Waiting for your OK (${data.approvals?.length ?? 0})`}>
+              {!data.approvals?.length && <Empty>Nothing waiting. Your helpers put drafts and price changes here before anything is sent.</Empty>}
               <div className="space-y-3">
                 {data.approvals?.map(a => <ApprovalCard key={a.id} a={a} busy={busy === a.id} canDecide={isAdmin || !(a.level === "L3" || a.level === "L4")}
                   onDecide={(decision, payload, note) => act(a.id, () => api("/api/hostly/approvals", { id: a.id, decision, payload, note }),
@@ -161,19 +175,19 @@ export default function HostlyCommandCenter() {
           </div>
 
           <div className="space-y-4">
-            <Card title="Incidents">
-              {!data.incidents?.length && <Empty>No open incidents.</Empty>}
+            <Card title="Problems to fix">
+              {!data.incidents?.length && <Empty>No problems right now.</Empty>}
               <ul className="space-y-2">
                 {data.incidents?.map(i => (
                   <li key={i.id} className="text-sm">
-                    <span className={`mr-2 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${sevColor[i.severity] ?? "bg-stone-600"}`}>{i.severity}</span>
+                    <span className={`mr-2 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${sevColor[i.severity] ?? "bg-stone-600"}`}>{SEVERITY_LABEL[i.severity] ?? i.severity}</span>
                     {i.summary}
-                    <div className="text-xs text-stone-400">respond by {fmtTime(i.respond_by)}</div>
+                    <div className="text-xs text-stone-400">fix by {fmtTime(i.respond_by)}</div>
                   </li>
                 ))}
               </ul>
             </Card>
-            <Card title="Due work">
+            <Card title="Tasks coming up">
               {!data.tasks?.length && <Empty>No open tasks.</Empty>}
               <ul className="space-y-1.5 text-sm">
                 {data.tasks?.slice(0, 12).map(t => (
@@ -187,20 +201,20 @@ export default function HostlyCommandCenter() {
           </div>
 
           <div className="lg:col-span-2">
-            <Card title="AI agent workforce" right={<span className="text-xs text-stone-500">autonomy is earned: ≥97% approved unchanged over 200 decisions</span>}>
+            <Card title="Your AI helpers" right={<span className="text-xs text-stone-500">Give a helper more freedom once you trust its work</span>}>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
-                  <thead className="text-xs text-stone-400"><tr><th className="py-1">Agent · action</th><th>Level</th><th>28-day quality</th></tr></thead>
+                  <thead className="text-xs text-stone-400"><tr><th className="py-1">Helper and job</th><th>How much it can do alone</th><th>You approved without changes (last 4 weeks)</th></tr></thead>
                   <tbody>
                     {data.autonomy?.map(a => {
                       const q = qualityOf[`${a.agent}.${a.action}`];
                       return (
                         <tr key={`${a.agent}.${a.action}`} className="border-t border-ember-800 align-top">
-                          <td className="py-2 pr-2"><b>{AGENT_LABEL[a.agent] ?? a.agent}</b> · {a.action.replace(/_/g, " ")}<div className="text-xs text-stone-400">{a.description}</div></td>
+                          <td className="py-2 pr-2"><b>{AGENT_LABEL[a.agent] ?? a.agent}</b><div className="text-xs text-stone-400">{a.description}</div></td>
                           <td className="py-2 pr-2">
                             {isAdmin && a.max_level > 0 ? (
                               <select className="rounded bg-ember-800 px-1.5 py-1 text-xs" value={a.level} disabled={busy === `${a.agent}.${a.action}`}
-                                onChange={e => act(`${a.agent}.${a.action}`, () => api("/api/hostly/autonomy", { agent: a.agent, action: a.action, level: Number(e.target.value) }), () => "Autonomy updated.")}>
+                                onChange={e => act(`${a.agent}.${a.action}`, () => api("/api/hostly/autonomy", { agent: a.agent, action: a.action, level: Number(e.target.value) }), () => "Saved. Every change is recorded.")}>
                                 {LEVEL_LABEL.slice(0, a.max_level + 1).map((l, i) => <option key={l} value={i}>{l}</option>)}
                               </select>
                             ) : <span className="text-xs">{LEVEL_LABEL[a.level]}</span>}
@@ -216,9 +230,9 @@ export default function HostlyCommandCenter() {
           </div>
 
           <div className="space-y-4">
-            <Card title="Add a US lead"><LeadForm busy={busy === "lead"} onSubmit={lead => act("lead", () => api("/api/hostly/leads", lead), r => `Lead added; the Outreach agent ${r.report?.runs?.[0]?.summary?.toLowerCase() ?? "is on it"}.`)} /></Card>
-            <Card title="Lead pipeline">
-              {!Object.keys(data.pipeline ?? {}).length && <Empty>No leads yet.</Empty>}
+            <Card title="Check a new owner"><LeadForm busy={busy === "lead"} onSubmit={lead => act("lead", () => api("/api/hostly/leads", lead), r => `Owner added. Owner finder: ${r.report?.runs?.[0]?.summary ?? "checking now"}.`)} /></Card>
+            <Card title="Finding new owners">
+              {!Object.keys(data.pipeline ?? {}).length && <Empty>No owners added yet.</Empty>}
               <div className="flex flex-wrap gap-1.5 text-xs">
                 {Object.entries(data.pipeline ?? {}).map(([k, v]) => <span key={k} className="rounded bg-ember-800 px-2 py-1">{k.replace(/_/g, " ")}: <b>{v}</b></span>)}
               </div>
@@ -226,8 +240,8 @@ export default function HostlyCommandCenter() {
           </div>
 
           <div className="lg:col-span-2">
-            <Card title="Agent activity">
-              {!data.runs?.length && <Empty>No agent runs yet. Events arrive at /api/hostly/events.</Empty>}
+            <Card title="What your helpers did">
+              {!data.runs?.length && <Empty>Nothing yet. Activity shows here as bookings and messages come in.</Empty>}
               <ul className="divide-y divide-ember-800 text-sm">
                 {data.runs?.map(r => (
                   <li key={r.id} className="flex gap-3 py-1.5">
@@ -240,8 +254,8 @@ export default function HostlyCommandCenter() {
             </Card>
           </div>
 
-          <Card title="Failed automations">
-            {!data.failed_events?.length && <Empty>Nothing failing. Failed events retry with backoff, then land here.</Empty>}
+          <Card title="Things that did not work">
+            {!data.failed_events?.length && <Empty>All good. If something fails, the system tries again a few times before showing it here.</Empty>}
             <ul className="space-y-2 text-sm">
               {data.failed_events?.map(e => (
                 <li key={e.id}><b>{e.type}</b> <span className="text-xs text-stone-400">from {e.source}, {e.status}, {e.attempts} tries</span><div className="text-xs text-red-300">{e.last_error}</div></li>
@@ -263,25 +277,25 @@ function ApprovalCard({ a, busy, canDecide, onDecide }: { a: any; busy: boolean;
     <div className="rounded-lg border border-ember-700 bg-ember-950 p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="text-sm font-semibold">{a.title}</div>
-        <span className="rounded bg-ember-800 px-1.5 py-0.5 text-[10px] font-bold">{AGENT_LABEL[a.agent] ?? a.agent} · {a.level}</span>
+        <span className="rounded bg-ember-800 px-1.5 py-0.5 text-[10px] font-bold">{AGENT_LABEL[a.agent] ?? a.agent}</span>
       </div>
       {ev.guest_message && <p className="mt-2 rounded bg-ember-900 p-2 text-xs text-stone-300">Guest: “{ev.guest_message}”</p>}
       {ev.rationale && <p className="mt-2 text-xs text-stone-300">{ev.rationale}</p>}
-      {Array.isArray(ev.facts) && ev.facts.length > 0 && <p className="mt-2 text-xs text-emerald-300">Facts: {ev.facts.join(" · ")}</p>}
-      {Array.isArray(ev.hypotheses) && ev.hypotheses.length > 0 && <p className="mt-1 text-xs text-amber-300">Guesses (check first): {ev.hypotheses.join(" · ")}</p>}
-      {Array.isArray(ev.needs_facts) && ev.needs_facts.length > 0 && <p className="mt-1 text-xs text-amber-300">Missing facts: {ev.needs_facts.join(" · ")}</p>}
+      {Array.isArray(ev.facts) && ev.facts.length > 0 && <p className="mt-2 text-xs text-emerald-300">What we know: {ev.facts.join(" · ")}</p>}
+      {Array.isArray(ev.hypotheses) && ev.hypotheses.length > 0 && <p className="mt-1 text-xs text-amber-300">Please check: {ev.hypotheses.join(" · ")}</p>}
+      {Array.isArray(ev.needs_facts) && ev.needs_facts.length > 0 && <p className="mt-1 text-xs text-amber-300">We still need: {ev.needs_facts.join(" · ")}</p>}
       {editable && (
         <div className="mt-2 space-y-1.5">
           {"subject" in (a.payload ?? {}) && <input className="w-full rounded bg-ember-800 px-2 py-1 text-sm" value={subject} onChange={e => setSubject(e.target.value)} />}
           <textarea className="h-28 w-full rounded bg-ember-800 px-2 py-1 text-sm" value={body} onChange={e => setBody(e.target.value)} />
         </div>
       )}
-      {a.result?.auto_error && <p className="mt-1 text-xs text-red-300">Auto-send failed: {a.result.auto_error}</p>}
+      {a.result?.auto_error && <p className="mt-1 text-xs text-red-300">Could not send: {a.result.auto_error}</p>}
       <div className="mt-2 flex items-center gap-2">
         {canDecide ? (<>
           <button disabled={busy} onClick={() => onDecide("approve", editable ? { subject, body } : undefined)} className="rounded bg-ember-500 px-3 py-1 text-sm font-semibold text-ember-950 disabled:opacity-50">Approve</button>
-          <button disabled={busy} onClick={() => onDecide("reject", undefined, prompt("Why reject? (helps the agent learn)") || undefined)} className="rounded bg-ember-800 px-3 py-1 text-sm disabled:opacity-50">Reject</button>
-        </>) : <span className="text-xs text-stone-400">An owner or admin decides this one.</span>}
+          <button disabled={busy} onClick={() => onDecide("reject", undefined, prompt("Why reject? (helps the helper learn)") || undefined)} className="rounded bg-ember-800 px-3 py-1 text-sm disabled:opacity-50">Reject</button>
+        </>) : <span className="text-xs text-stone-400">Only the owner decides this one.</span>}
         {a.expires_at && <span className="ml-auto text-xs text-stone-500">expires {fmtTime(a.expires_at)}</span>}
       </div>
     </div>
@@ -299,10 +313,10 @@ function LeadForm({ busy, onSubmit }: { busy: boolean; onSubmit: (l: Record<stri
           <option value="US-FL">Florida</option><option value="US-TN">Tennessee</option>
         </select>
         <select className="flex-1 rounded bg-ember-800 px-2 py-1 text-sm" value={f.lead_type} onChange={e => setF({ ...f, lead_type: e.target.value })}>
-          {["host", "owner", "realtor", "investor", "property_manager", "other"].map(t => <option key={t} value={t}>{t.replace("_", " ")}</option>)}
+          {[["host", "Host"], ["owner", "Owner"], ["realtor", "Realtor"], ["investor", "Investor"], ["property_manager", "Property manager"], ["other", "Other"]].map(([t, l]) => <option key={t} value={t}>{l}</option>)}
         </select>
       </div>
-      <button disabled={busy} className="w-full rounded bg-ember-500 py-1.5 text-sm font-semibold text-ember-950 disabled:opacity-50">{busy ? "Scoring…" : "Add and score"}</button>
+      <button disabled={busy} className="w-full rounded bg-ember-500 py-1.5 text-sm font-semibold text-ember-950 disabled:opacity-50">{busy ? "Checking…" : "Check this owner"}</button>
     </form>
   );
 }
@@ -321,7 +335,7 @@ function SignIn({ sb }: { sb: SupabaseClient }) {
   return (
     <main className="mx-auto mt-24 max-w-sm p-6">
       <h1 className="text-2xl font-black tracking-wide">HOSTLY <span className="font-normal text-ember-400">OS</span></h1>
-      <p className="mb-5 text-sm text-stone-400">Sign in to the agent command center.</p>
+      <p className="mb-5 text-sm text-stone-400">Sign in to your Hostly OS.</p>
       <form className="space-y-2" onSubmit={e => { e.preventDefault(); run(() => sb.auth.signInWithPassword({ email: email.trim(), password }), ""); }}>
         <input className="w-full rounded bg-ember-800 px-3 py-2" type="email" placeholder="Email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
         <input className="w-full rounded bg-ember-800 px-3 py-2" type="password" placeholder="Password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} />
@@ -330,7 +344,7 @@ function SignIn({ sb }: { sb: SupabaseClient }) {
           className="w-full rounded bg-ember-800 py-2 text-sm disabled:opacity-50">Email me a sign-in link</button>
       </form>
       {msg && <p className="mt-3 text-sm text-ember-400">{msg}</p>}
-      <p className="mt-6 text-xs text-stone-500">Only emails on the Hostly OS staff list can see data. The first person to sign in becomes the owner.</p>
+      <p className="mt-6 text-xs text-stone-500">Only people you add can see your data.</p>
     </main>
   );
 }
