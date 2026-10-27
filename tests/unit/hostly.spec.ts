@@ -193,6 +193,19 @@ test.describe("orchestrator and agents", () => {
   });
 });
 
+test.describe("guest inbox", () => {
+  test("the Guest helper answers from the listing's guest info", async () => {
+    const store = new MemoryStore();
+    store.properties.push(villa({ guest_info: "Check-in 4pm. Wifi: VillaGuest / sun123" }));
+    const inputs: any[] = [];
+    const ask = (async (o: { input: unknown }) => (inputs.push(o.input), { data: { intent: "checkin", risk: "routine", summary: "Check-in time", reply: "Check-in is at 4pm.", needs_facts: [] }, model: "m", inputTokens: 1, outputTokens: 1 })) as unknown as Ask;
+    await ingest(store, { source: "inbox", external_id: "i1", type: "guest.message", payload: { property_code: "KIS-01", channel: "airbnb", from: "Sarah", body: "What time is check-in?" } });
+    await processBatch(store, { ask });
+    expect(inputs[0].property_facts).toBe("Check-in 4pm. Wifi: VillaGuest / sun123");
+    expect(store.approvals[0]).toMatchObject({ status: "pending", payload: { channel: "airbnb", body: "Check-in is at 4pm." } });
+  });
+});
+
 test.describe("calendar sync", () => {
   const ICS = [
     "BEGIN:VCALENDAR", "PRODID:-//Airbnb Inc//Hosting Calendar//EN",

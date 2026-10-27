@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 // The Hostly OS command center, with the server answers stubbed: it signs in to Hostly OS's own Supabase
 // project and reads everything from /api/hostly/*.
@@ -98,4 +99,34 @@ test("adding a listing sends its prices and Airbnb calendar link", async ({ page
   await expect(page.getByText("Listing added.")).toBeVisible();
   await expect(page.getByText("Lake Nona Villa")).toBeVisible();
   expect(saved[0]).toMatchObject({ name: "Lake Nona Villa", base_price: "180", min_price: "120", max_price: "350", calendar_urls: { airbnb: "https://www.airbnb.com/calendar/ical/1.ics" } });
+});
+
+test("inbox: paste a guest message, get the helper's reply and mark it sent", async ({ page }) => {
+  await open(page);
+  const posts: any[] = [];
+  let messages: any[] = [];
+  await page.route("**/api/hostly/inbox", async r => {
+    if (r.request().method() === "POST") {
+      const b = r.request().postDataJSON();
+      posts.push(b);
+      messages = b.action === "new"
+        ? [{ id: "m1", property_id: "p1", channel: "airbnb", direction: "in", sender: "Sarah", body: b.body, risk: "routine", draft_reply: "Hi Sarah! Check-in is at 4pm.", status: "awaiting_approval", created_at: "2026-10-27T10:00:00Z" }]
+        : [{ ...messages[0], status: "sent" }];
+      return r.fulfill({ json: { ok: true } });
+    }
+    return r.fulfill({ json: { messages, properties: [{ id: "p1", code: "LAKE", name: "Lake Nona Villa" }], open_statuses: ["new", "drafted", "awaiting_approval", "escalated"] } });
+  });
+  await page.getByRole("button", { name: "Inbox", exact: true }).click();
+  await expect(page.getByText("Nothing waiting")).toBeVisible();
+  await page.getByLabel("Listing").selectOption("LAKE");
+  await page.getByLabel("Guest name").fill("Sarah");
+  await page.getByLabel("Guest's message").fill("What time is check-in?");
+  await page.getByRole("button", { name: "Get a reply" }).click();
+  const reply = page.locator("textarea").first();
+  await expect(reply).toHaveValue("Hi Sarah! Check-in is at 4pm.");
+  await reply.fill("Hi Sarah! Check-in is at 4pm, see you soon.");
+  await page.getByRole("button", { name: "Mark as sent" }).click();
+  await expect(page.getByText("Marked as sent.")).toBeVisible();
+  expect(posts[0]).toMatchObject({ action: "new", property_code: "LAKE", channel: "airbnb", from: "Sarah", body: "What time is check-in?" });
+  expect(posts[1]).toMatchObject({ action: "done", id: "m1", reply: "Hi Sarah! Check-in is at 4pm, see you soon." });
 });

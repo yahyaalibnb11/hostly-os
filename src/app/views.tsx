@@ -24,7 +24,7 @@ function Box({ title, right, children }: { title: string; right?: React.ReactNod
   );
 }
 
-const EMPTY = { name: "", market: "US-FL", city: "", status: "onboarding", bedrooms: "", capacity: "", base_price: "", min_price: "", max_price: "", max_discount_pct: "15", auto_change_limit_pct: "10", listing_url: "", airbnb: "", vrbo: "", booking: "" };
+const EMPTY = { name: "", market: "US-FL", city: "", status: "onboarding", bedrooms: "", capacity: "", base_price: "", min_price: "", max_price: "", max_discount_pct: "15", auto_change_limit_pct: "10", listing_url: "", airbnb: "", vrbo: "", booking: "", guest_info: "" };
 
 export function ListingsView({ api, isAdmin, onMessage }: { api: Api; isAdmin: boolean; onMessage: (m: string) => void }) {
   const [list, setList] = useState<any[] | null>(null);
@@ -39,6 +39,7 @@ export function ListingsView({ api, isAdmin, onMessage }: { api: Api; isAdmin: b
     bedrooms: p.bedrooms ?? "", capacity: p.capacity ?? "", base_price: p.base_price ?? "", min_price: p.min_price ?? "", max_price: p.max_price ?? "",
     max_discount_pct: String(p.max_discount_pct ?? 15), auto_change_limit_pct: String(p.auto_change_limit_pct ?? 10),
     listing_url: p.listing_ids?.listing_url ?? "", airbnb: p.calendar_urls?.airbnb ?? "", vrbo: p.calendar_urls?.vrbo ?? "", booking: p.calendar_urls?.booking ?? "",
+    guest_info: p.guest_info ?? "",
   } : { ...EMPTY });
 
   const save = async () => {
@@ -117,6 +118,10 @@ export function ListingsView({ api, isAdmin, onMessage }: { api: Api; isAdmin: b
               {field("airbnb", "Airbnb calendar link", "https://www.airbnb.com/calendar/ical/….ics")}
               {field("vrbo", "Vrbo calendar link", "https://www.vrbo.com/icalendar/….ics")}
               {field("booking", "Booking.com calendar link", "https://admin.booking.com/hotel/hoteladmin/ical.html?…")}
+              <label className="block pt-1 text-xs text-stone-400">Guest info (the Guest helper only answers from this)
+                <textarea rows={5} className={input + " mt-0.5 text-stone-100"} placeholder={"Check-in 4pm, check-out 10am\nWifi: VillaGuest / sunshine123\nParking: 2 cars in the driveway\nNo parties, no smoking"} value={form.guest_info ?? ""} onChange={e => setForm({ ...form, guest_info: e.target.value })} />
+              </label>
+              <p className="text-xs text-stone-500">Don&apos;t put door codes here. Send those yourself.</p>
               <p className="text-xs text-stone-500">Airbnb: Listing → Availability → Connect calendars → Export calendar → copy the link.</p>
               <div className="flex gap-2 pt-1">
                 <button disabled={busy} onClick={save} className="rounded bg-ember-500 px-3 py-1.5 text-sm font-semibold text-ember-950 disabled:opacity-50">{busy ? "Saving…" : "Save"}</button>
@@ -216,6 +221,126 @@ export function CalendarView({ api, isAdmin, onMessage }: { api: Api; isAdmin: b
           ))}
         </ul>
       </Box>
+    </div>
+  );
+}
+
+const RISK: Record<string, [string, string]> = {
+  emergency: ["Emergency", "bg-red-700 text-white"], urgent: ["Urgent", "bg-red-900 text-red-100"],
+  sensitive: ["Careful", "bg-amber-900 text-amber-100"], routine: ["Normal", "bg-ember-800 text-stone-200"],
+};
+const CHANNEL_LABEL: [string, string][] = [["airbnb", "Airbnb"], ["vrbo", "Vrbo"], ["booking", "Booking.com"], ["whatsapp", "WhatsApp"], ["sms", "Text message"], ["email", "Email"], ["other", "Other"]];
+
+// Guest inbox. Paste a guest's message (from the Airbnb app, for now), the Guest helper checks it for
+// danger and writes a reply from the listing's guest info; copy the reply back and mark it sent.
+export function InboxView({ api, onMessage }: { api: Api; onMessage: (m: string) => void }) {
+  const [data, setData] = useState<{ messages: any[]; properties: any[]; open_statuses: string[] } | null>(null);
+  const [tab, setTab] = useState<"open" | "all">("open");
+  const [form, setForm] = useState({ property_code: "", channel: "airbnb", from: "", body: "" });
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState("");
+
+  const load = useCallback(() => api("/api/hostly/inbox").then(setData).catch(e => onMessage(e.message)), [api, onMessage]);
+  useEffect(() => { load(); }, [load]);
+
+  const props = useMemo(() => Object.fromEntries((data?.properties ?? []).map(p => [p.id, p])), [data]);
+  const incoming = (data?.messages ?? []).filter(m => m.direction === "in" && (tab === "all" || data!.open_statuses.includes(m.status)));
+  const replies = (data?.messages ?? []).filter(m => m.direction === "out");
+
+  const send = async () => {
+    setBusy("new");
+    try {
+      await api("/api/hostly/inbox", { action: "new", ...form });
+      setForm({ ...form, from: "", body: "" });
+      onMessage("Message added. The Guest helper's reply is below.");
+      await load();
+    } catch (e) { onMessage((e as Error).message); } finally { setBusy(""); }
+  };
+  const done = async (m: any, reply: string) => {
+    setBusy(m.id);
+    try {
+      await api("/api/hostly/inbox", { action: "done", id: m.id, reply });
+      onMessage(reply ? "Marked as sent." : "Closed.");
+      await load();
+    } catch (e) { onMessage((e as Error).message); } finally { setBusy(""); }
+  };
+  const copy = (text: string) => navigator.clipboard?.writeText(text).then(() => onMessage("Reply copied. Paste it in Airbnb, then press Mark as sent."), () => onMessage("Couldn't copy; select the text and copy it."));
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-3">
+      <div className="lg:col-span-2">
+        <Box title="Guest messages" right={
+          <div className="flex gap-1">
+            {([["open", "Needs a reply"], ["all", "All"]] as const).map(([k, l]) => (
+              <button key={k} onClick={() => setTab(k)} className={`rounded px-2 py-1 text-xs ${tab === k ? "bg-ember-500 font-semibold text-ember-950" : "bg-ember-800"}`}>{l}</button>
+            ))}
+          </div>
+        }>
+          {data === null && <p className="text-sm text-stone-400">Loading…</p>}
+          {data && incoming.length === 0 && <p className="text-sm text-stone-400">{tab === "open" ? "Nothing waiting. All guests have an answer." : "No guest messages yet."}</p>}
+          <div className="space-y-3">
+            {incoming.map(m => {
+              const [label, cls] = RISK[m.risk ?? "routine"] ?? RISK.routine;
+              const draft = drafts[m.id] ?? m.draft_reply ?? "";
+              const open = data!.open_statuses.includes(m.status);
+              const sent = replies.filter(r => r.sender === m.sender && r.channel === m.channel && r.created_at > m.created_at).slice(-1)[0];
+              return (
+                <div key={m.id} className="rounded-lg border border-ember-700 bg-ember-950 p-3 text-sm">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-stone-400">
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${cls}`}>{label}</span>
+                    <b className="text-stone-200">{m.sender || "Guest"}</b>
+                    <span>{props[m.property_id]?.name ?? "No listing"} · {CHANNEL_LABEL.find(c => c[0] === m.channel)?.[1] ?? m.channel} · {fmtDay(m.created_at)}</span>
+                    {!open && <span className="text-emerald-300">{m.status === "sent" ? "Answered" : "Closed"}</span>}
+                  </div>
+                  <p className="mt-2 whitespace-pre-wrap rounded bg-ember-900 p-2">{m.body}</p>
+                  {m.status === "escalated" && <p className="mt-2 rounded border border-red-700 bg-red-950 p-2 text-xs text-red-100"><b>Call or message this guest now.</b> It&apos;s on the Today page under Problems to fix. The helper doesn&apos;t answer this one.</p>}
+                  {open && m.status !== "escalated" && (
+                    <>
+                      <p className="mt-2 text-xs text-stone-400">{m.draft_reply ? "Guest helper's reply. Change it if you want:" : "Write your reply (the helper had no answer; add Guest info to the listing so it can help next time):"}</p>
+                      <textarea rows={3} className={input + " mt-1 text-stone-100"} value={draft} onChange={e => setDrafts({ ...drafts, [m.id]: e.target.value })} />
+                    </>
+                  )}
+                  {!open && sent && <p className="mt-2 whitespace-pre-wrap text-xs text-stone-400">You replied: {sent.body}</p>}
+                  {open && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {m.status !== "escalated" && <button onClick={() => copy(draft)} disabled={!draft.trim()} className="rounded bg-ember-800 px-2.5 py-1 text-xs disabled:opacity-50">Copy reply</button>}
+                      {m.status !== "escalated" && <button onClick={() => done(m, draft.trim())} disabled={busy === m.id || !draft.trim()} className="rounded bg-ember-500 px-2.5 py-1 text-xs font-semibold text-ember-950 disabled:opacity-50">Mark as sent</button>}
+                      <button onClick={() => done(m, "")} disabled={busy === m.id} className="rounded bg-ember-800 px-2.5 py-1 text-xs">{m.status === "escalated" ? "Handled, close it" : "No reply needed"}</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Box>
+      </div>
+      <div>
+        <Box title="Add a guest message">
+          <div className="space-y-2">
+            <label className="block text-xs text-stone-400">Listing
+              <select className={input + " mt-0.5 text-stone-100"} value={form.property_code} onChange={e => setForm({ ...form, property_code: e.target.value })}>
+                <option value="">Choose…</option>
+                {data?.properties.map(p => <option key={p.id} value={p.code}>{p.name}</option>)}
+              </select>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block text-xs text-stone-400">From
+                <select className={input + " mt-0.5 text-stone-100"} value={form.channel} onChange={e => setForm({ ...form, channel: e.target.value })}>
+                  {CHANNEL_LABEL.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </label>
+              <label className="block text-xs text-stone-400">Guest name
+                <input className={input + " mt-0.5 text-stone-100"} placeholder="Sarah" value={form.from} onChange={e => setForm({ ...form, from: e.target.value })} />
+              </label>
+            </div>
+            <label className="block text-xs text-stone-400">Guest&apos;s message
+              <textarea rows={4} className={input + " mt-0.5 text-stone-100"} placeholder="Hi! What time can we check in?" value={form.body} onChange={e => setForm({ ...form, body: e.target.value })} />
+            </label>
+            <button onClick={send} disabled={busy === "new" || !form.body.trim()} className="rounded bg-ember-500 px-3 py-1.5 text-sm font-semibold text-ember-950 disabled:opacity-50">{busy === "new" ? "Writing reply…" : "Get a reply"}</button>
+            <p className="text-xs text-stone-500">Copy the guest&apos;s message from the Airbnb app and paste it here. The helper checks it for danger (gas, fire, lockout) and writes a reply from the listing&apos;s Guest info. You copy the reply back to Airbnb.</p>
+          </div>
+        </Box>
+      </div>
     </div>
   );
 }

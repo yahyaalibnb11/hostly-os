@@ -4,7 +4,7 @@ import { PG_EXCLUSION_VIOLATION, type HostlyStore, type Property, type Reservati
 // HostlyStore on the Supabase tables from supabase/migrations/0001_hostly_core.sql. Server only:
 // it uses the service-role client, so callers must check the user's role first.
 
-const PROPERTY_COLS = "id, code, name, market, timezone, currency, status, base_price, min_price, max_price, max_discount_pct, auto_change_limit_pct";
+const PROPERTY_COLS = "id, code, name, market, timezone, currency, status, base_price, min_price, max_price, max_discount_pct, auto_change_limit_pct, guest_info";
 
 function must<T>(r: { data: T; error: { message: string; code?: string } | null }, what: string): T {
   if (r.error) throw new Error(`${what}: ${r.error.message}`);
