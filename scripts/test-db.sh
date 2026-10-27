@@ -23,7 +23,11 @@ alter default privileges in schema public grant select, insert, update, delete o
 SQL
 run -f supabase/migrations/0001_hostly_core.sql
 run -f supabase/migrations/0001_hostly_core.sql
+run -f supabase/migrations/0002_calendar_urls.sql
+run -f supabase/migrations/0002_calendar_urls.sql
 run -f supabase/tests/hostly_core_test.sql
+run -f supabase/rollback/0002_calendar_urls_down.sql
 run -f supabase/rollback/0001_hostly_core_down.sql
 run -f supabase/migrations/0001_hostly_core.sql
+run -f supabase/migrations/0002_calendar_urls.sql
 echo "rollback and re-apply OK"

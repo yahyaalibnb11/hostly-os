@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { Ask } from "@/lib/hostly/agents";
 import { ingest, processBatch, type Executors } from "@/lib/hostly/engine";
 import { decidePrice, gate, keywordRisk, zonedTimeToUtc } from "@/lib/hostly/policy";
+import { calendarUrlOk, parseIcs, planCalendarSync } from "@/lib/hostly/ical";
 import { MemoryStore, villa } from "./memory-store";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -189,5 +190,47 @@ test.describe("orchestrator and agents", () => {
     await ingest(store, { source: "scheduler", external_id: "pricing:KIS-01:2026-10-28", type: "pricing.review", payload: { property_code: "KIS-01" } });
     await processBatch(store, { ask: small.ask, executors, now: new Date("2026-10-28T06:00:00Z") });
     expect(applied).toHaveLength(1);
+  });
+});
+
+test.describe("calendar sync", () => {
+  const ICS = [
+    "BEGIN:VCALENDAR", "PRODID:-//Airbnb Inc//Hosting Calendar//EN",
+    "BEGIN:VEVENT", "DTSTAMP:20261027T120000Z", "DTSTART;VALUE=DATE:20261101", "DTEND;VALUE=DATE:20261105",
+    "SUMMARY:Reserved", "UID:1418fb94e984-abc@air", " bnb.com", "END:VEVENT",
+    "BEGIN:VEVENT", "DTSTART;VALUE=DATE:20261110", "DTEND;VALUE=DATE:20261112", "SUMMARY:Airbnb (Not available)", "UID:blk-1@airbnb.com", "END:VEVENT",
+    "BEGIN:VEVENT", "DTSTART;VALUE=DATE:20261001", "DTEND;VALUE=DATE:20261003", "SUMMARY:Reserved", "UID:old@airbnb.com", "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+
+  test("an Airbnb feed becomes stays and blocks; past stays are skipped; a vanished stay is cancelled", () => {
+    const feed = parseIcs(ICS);
+    expect(feed[0]).toEqual({ uid: "1418fb94e984-abc@airbnb.com", start: "2026-11-01", end: "2026-11-05", summary: "Reserved" });
+    const plan = planCalendarSync({
+      propertyCode: "KIS-01", channel: "airbnb", feed, today: "2026-10-27",
+      known: [{ external_ref: "gone@airbnb.com", status: "confirmed", check_in: "2026-11-20", check_out: "2026-11-22" }],
+    });
+    expect(plan.map(e => [e.payload.external_ref, e.payload.status])).toEqual([
+      ["1418fb94e984-abc@airbnb.com", "confirmed"], ["blk-1@airbnb.com", "blocked"], ["gone@airbnb.com", "cancelled"],
+    ]);
+  });
+
+  test("synced stays get a cleaning, and syncing the same feed again changes nothing", async () => {
+    const store = new MemoryStore();
+    store.properties.push(villa());
+    const plan = () => planCalendarSync({ propertyCode: "KIS-01", channel: "airbnb", feed: parseIcs(ICS), known: [], today: "2026-10-27" });
+    for (const e of plan()) await ingest(store, e);
+    await processBatch(store, { ask: noAi });
+    for (const e of plan()) expect((await ingest(store, e)).duplicate).toBe(true);
+    expect(store.reservations.map(r => r.status).sort()).toEqual(["blocked", "confirmed"]);
+    expect(store.tasks.filter(t => t.kind === "cleaning")).toHaveLength(1);
+  });
+
+  test("only real calendar links are fetched", () => {
+    expect(calendarUrlOk("https://www.airbnb.com/calendar/ical/123.ics?s=abc")).toBe(true);
+    expect(calendarUrlOk("https://www.airbnb.co.uk/calendar/ical/123.ics")).toBe(true);
+    expect(calendarUrlOk("http://www.airbnb.com/calendar/ical/123.ics")).toBe(false);
+    expect(calendarUrlOk("https://169.254.169.254/latest/meta-data")).toBe(false);
+    expect(calendarUrlOk("https://airbnb.com.evil.io/x.ics")).toBe(false);
   });
 });
