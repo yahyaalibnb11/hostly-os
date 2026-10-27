@@ -2,7 +2,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarView, ListingsView } from "./views";
+import { CalendarView, InboxView, ListingsView } from "./views";
 
 // Hostly OS command center: the agent workforce, the approval queue, incidents, today's work and KPIs.
 // Signs in with Hostly OS's own Supabase project and reads everything through /api/hostly/*,
@@ -52,7 +52,7 @@ export default function HostlyCommandCenter() {
   const [data, setData] = useState<Overview | null>(null);
   const [flash, setFlash] = useState<string>("");
   const [busy, setBusy] = useState<string>("");
-  const [view, setView] = useState<"today" | "listings" | "calendar">("today");
+  const [view, setView] = useState<"today" | "inbox" | "listings" | "calendar">("today");
 
   useEffect(() => {
     (async () => {
@@ -132,7 +132,7 @@ export default function HostlyCommandCenter() {
       </header>
 
       <nav className="mb-4 flex gap-1.5 overflow-x-auto">
-        {([["today", "Today"], ["listings", "Listings"], ["calendar", "Calendar"]] as const).map(([k, l]) => (
+        {([["today", "Today"], ["inbox", "Inbox"], ["listings", "Listings"], ["calendar", "Calendar"]] as const).map(([k, l]) => (
           <button key={k} onClick={() => setView(k)} className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${view === k ? "bg-ember-500 text-ember-950" : "bg-ember-800 text-stone-200"}`}>{l}</button>
         ))}
       </nav>
@@ -145,6 +145,7 @@ export default function HostlyCommandCenter() {
         </Card>
       )}
 
+      {data?.ready && view === "inbox" && <InboxView api={api} onMessage={setFlash} />}
       {data?.ready && view === "listings" && <ListingsView api={api} isAdmin={isAdmin} onMessage={setFlash} />}
       {data?.ready && view === "calendar" && <CalendarView api={api} isAdmin={isAdmin} onMessage={setFlash} />}
 

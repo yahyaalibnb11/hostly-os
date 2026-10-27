@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/hostly/server";
 
 export const dynamic = "force-dynamic";
 
-const COLS = "id, code, name, market, city, address, status, bedrooms, capacity, currency, base_price, min_price, max_price, max_discount_pct, auto_change_limit_pct, listing_ids, calendar_urls, calendar_synced_at, calendar_error";
+const COLS = "id, code, name, market, city, address, status, bedrooms, capacity, currency, base_price, min_price, max_price, max_discount_pct, auto_change_limit_pct, listing_ids, calendar_urls, calendar_synced_at, calendar_error, guest_info";
 const CHANNELS = ["airbnb", "vrbo", "booking"];
 const STATUSES = ["onboarding", "live", "paused", "offboarded"];
 
@@ -64,6 +64,7 @@ export async function POST(req: Request) {
       base_price: money("base_price"), min_price: money("min_price"), max_price: money("max_price"),
       max_discount_pct: money("max_discount_pct") ?? 15, auto_change_limit_pct: money("auto_change_limit_pct") ?? 10,
       listing_ids: listingUrl ? { listing_url: listingUrl } : {}, calendar_urls,
+      guest_info: str("guest_info", 4000) || null,
     };
     if (row.min_price != null && row.max_price != null && row.min_price > row.max_price) throw new HttpError(400, "Lowest price can't be above highest price");
     if (row.max_discount_pct > 90 || row.auto_change_limit_pct > 50) throw new HttpError(400, "Discount must be 90% or less and daily change 50% or less");

@@ -23,6 +23,7 @@ export type Property = {
   max_price: number | null;
   max_discount_pct: number;
   auto_change_limit_pct: number;
+  guest_info?: string | null;   // what the Guest helper may tell guests: wifi, check-in time, parking, rules
 };
 
 export type Reservation = {

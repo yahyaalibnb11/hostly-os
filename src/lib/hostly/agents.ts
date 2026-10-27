@@ -178,7 +178,7 @@ const concierge: Agent = {
       ai = (await ask<GuestAi>({
         copilot: "Concierge agent",
         instructions: "Classify the guest message and, unless it is an emergency, draft a short, warm reply using only the property facts given. Do not offer refunds, discounts or compensation, and never share access codes.",
-        input: { message: body, property: property ? { name: property.name, code: property.code } : null, property_facts: p.property_facts ?? null },
+        input: { message: body, property: property ? { name: property.name, code: property.code } : null, property_facts: p.property_facts ?? property?.guest_info ?? null },
         schema: GUEST_SCHEMA,
         effort: "low",
       })) as AiResult<GuestAi> | null;
