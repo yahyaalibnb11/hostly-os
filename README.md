@@ -35,5 +35,5 @@ Setup, event contract and roadmap: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Hostly Scout
 
-`/scout` is the research team's listing tool: name + PIN sign-in, listing audit and score, pitch drafts,
+`/scout` (live at hostly-os-qzr8.vercel.app/scout) is the research team's listing tool: name + PIN sign-in, listing audit and score, pitch drafts,
 team leaderboard and Excel export. Its tables come from `supabase/migrations/0004_scout.sql`.
