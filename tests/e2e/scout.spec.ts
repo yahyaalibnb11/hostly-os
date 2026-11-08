@@ -84,3 +84,33 @@ test("the sheet filters and downloads", async ({ page }) => {
   await page.getByRole("button", { name: /Excel download \(1\)/ }).click();
   expect((await dl).suggestedFilename()).toMatch(/^hostly-scout-.*\.csv$/);
 });
+
+test("screenshots fill the form with AI", async ({ page }) => {
+  await page.route("**/api/scout/scan", async r => {
+    const b = r.request().postDataJSON();
+    expect(b.images).toHaveLength(2);
+    expect(b.images[0].type).toBe("image/jpeg");
+    await r.fulfill({ json: { result: {
+      platform: "airbnb", listing_id: "55443322", title: "Bright 2BR by the Etihad", host_name: "Priya", host_listings: 2, property_type: "2 BHK", city_or_area: "Manchester",
+      market: "uk-manchester", rating: 4.61, reviews: 23, currency: "GBP", weekday_price: 89, weekend_price: 89, min_nights: 3, photos: 14, response_rate: 80,
+      managed_by: "self", licence_number: "", problems: ["weak_cover", "boring_title"], other_problems: ["No parking info"], review_praise: ["Clean"], review_complaints: ["Noisy street"],
+      photo_quality: "Dark living room photos", summary_roman_urdu: "Photos andheri hain, pricing flat hai.", not_visible: ["licence"],
+    } } });
+  });
+  await open(page);
+  await page.unroute("**/api/scout/data");
+  await page.route("**/api/scout/data", r => r.fulfill({ json: { me: ME, members: MEMBERS, listings: LISTINGS, ai: true } }));
+  await page.reload();
+  await page.getByRole("button", { name: /Nayi listing add karo/ }).click();
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+  await page.getByTestId("scan-files").setInputFiles([{ name: "a.png", mimeType: "image/png", buffer: png }, { name: "b.png", mimeType: "image/png", buffer: png }]);
+  await page.getByRole("button", { name: /2 screenshots scan karo/ }).click();
+  await expect(page.getByText("Photos andheri hain")).toBeVisible();
+  await expect(page.getByPlaceholder("https://www.airbnb.com/rooms/12345678")).toHaveValue("https://www.airbnb.com/rooms/55443322");
+  await expect(page.getByPlaceholder("Sarah")).toHaveValue("Priya");
+  await expect(page.getByPlaceholder("Sea view 2BR with pool, 5 min to beach")).toHaveValue("Bright 2BR by the Etihad");
+  await expect(page.getByRole("button", { name: /✓ Cover photo kamzor/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Companies House/ })).toBeVisible();
+  if (process.env.SCOUT_SHOTS) await page.screenshot({ path: `${process.env.SCOUT_SHOTS}/scan.png`, fullPage: true });
+});
+

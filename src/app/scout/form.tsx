@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { autoProblems, buildPitch, COUNTRIES, GRADE, linkKey, MANAGED_BY, MARKETS, marketById, OFFERS, PROBLEM_GROUPS, PROBLEMS, PROPERTY_TYPES, scoreListing, solutionsText, STATUSES } from "@/lib/scout/catalog";
+import { ContactFinder, ScreenshotScanner, type ScanResult } from "./scanner";
 import { Card, Ring, type Api, type Listing, type Member } from "./ui";
 
 // Add or edit one listing. The score, problem count, solutions and pitch all update live while typing.
@@ -81,6 +82,32 @@ export function ListingForm({ api, me, members, editing, ai, onSaved, onCancel, 
     setF(prev => ({ ...prev, pitch: p.body, pitch_subject: p.subject }));
   }, [s.ids.join(), f.custom_problems, f.host_name, f.title, f.market, offer, pitchTouched]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [area, setArea] = useState("");
+
+  // Put what the AI read from the screenshots into the form. The student checks it before saving.
+  const applyScan = (r: ScanResult) => {
+    const has = (v: unknown) => v !== null && v !== undefined && v !== "";
+    setF(p => {
+      const n = { ...p };
+      for (const k of [...NUM_FIELDS, "host_name", "title", "property_type", "licence_number", "currency"]) if (has(r[k])) n[k] = r[k];
+      if (has(r.market)) n.market = r.market;
+      if (r.managed_by && r.managed_by !== "unknown") n.managed_by = r.managed_by;
+      if (!p.link && r.platform === "airbnb" && /^\d{5,}$/.test(String(r.listing_id ?? ""))) n.link = `https://www.airbnb.com/rooms/${r.listing_id}`;
+      if (!n.currency && n.market) n.currency = marketById(n.market)?.currency ?? "";
+      const extra = (r.other_problems ?? []).filter((x: string) => x && !String(p.custom_problems).includes(x));
+      if (extra.length) n.custom_problems = [String(p.custom_problems).trim(), ...extra].filter(Boolean).join("\n");
+      const notes = [
+        r.review_complaints?.length ? `Guest complaints: ${r.review_complaints.join("; ")}` : "",
+        r.review_praise?.length ? `Guests like: ${r.review_praise.join("; ")}` : "",
+        r.photo_quality ? `Photos: ${r.photo_quality}` : "",
+      ].filter(Boolean).join(" | ");
+      if (notes && !String(p.notes).includes(notes)) n.notes = [String(p.notes).trim(), notes].filter(Boolean).join(" | ");
+      return n;
+    });
+    if (Array.isArray(r.problems)) setPicked(p => Array.from(new Set([...p, ...r.problems.filter((id: string) => PROBLEMS.some(x => x.id === id && !x.auto))])));
+    if (r.city_or_area) setArea(r.city_or_area);
+  };
+
   const toggle = (id: string) => setPicked(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
 
   const save = async () => {
@@ -122,6 +149,8 @@ export function ListingForm({ api, me, members, editing, ai, onSaved, onCancel, 
       <div className="space-y-4">
         {editing && <p className="scout-rise text-sm text-stone-400">Edit: <b className="text-stone-200">{editing.title || editing.link}</b> · {owner} ne add ki{ro && " · aap sirf status, pitch aur notes badal sakte ho"}</p>}
 
+        {!ro && !editing && <ScreenshotScanner api={api} ai={ai} onResult={applyScan} toast={toast} />}
+
         <Step n={1} title="Listing link aur market" sub="Link se pata chalta hai ke ye listing pehle kisi ne dali hai ya nahi" delay={0}>
           <div key={shake} className={`grid gap-3 sm:grid-cols-2 ${shake ? "scout-shake" : ""}`}>
             <Field label="Listing link" hint="Airbnb / Vrbo / Booking" wide>
@@ -147,6 +176,7 @@ export function ListingForm({ api, me, members, editing, ai, onSaved, onCancel, 
               <select className={inp} value={f.managed_by} disabled={ro} onChange={e => set("managed_by", e.target.value)}>{MANAGED_BY.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}</select>
             </Field>
             <Field label="Contact" hint="Facebook / email / website"><input className={inp} placeholder="facebook.com/… ya email" value={f.contact} onChange={e => set("contact", e.target.value)} /></Field>
+            <div className="sm:col-span-2"><ContactFinder host={f.host_name} title={f.title} market={f.market} area={area} licence={f.licence_number} /></div>
           </div>
         </Step>
 

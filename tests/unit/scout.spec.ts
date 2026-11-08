@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { autoProblems, buildPitch, linkKey, scoreListing, solutionsText } from "@/lib/scout/catalog";
 import { hashPin, pinMatches } from "@/lib/scout/server";
+import { SCAN_SCHEMA } from "@/lib/scan/listing";
+import { contactLinks } from "@/app/scout/scanner";
 
 test.describe("scout", () => {
   test("the same listing gives the same key whatever the domain or tracking junk", () => {
@@ -41,5 +43,20 @@ test.describe("scout", () => {
     expect(pinMatches("123456", h)).toBe(true);
     expect(pinMatches("123457", h)).toBe(false);
     expect(pinMatches("123456", null)).toBe(false);
+  });
+
+  test("the screenshot scanner asks for every field it describes", () => {
+    expect([...SCAN_SCHEMA.required].sort()).toEqual(Object.keys(SCAN_SCHEMA.properties).sort());
+    expect(SCAN_SCHEMA.properties.problems.items.enum).toContain("weak_cover");
+  });
+
+  test("contact search links use the host, city and market", () => {
+    const uk = contactLinks({ host: "Sarah", market: "uk-manchester", title: "Cosy 2BR", licence: "" });
+    expect(uk.map(l => l.label)).toEqual(expect.arrayContaining(["Google: host + city", "Facebook", "Companies House", "Title Google pe", "Google Lens"]));
+    expect(decodeURIComponent(uk[0].url)).toContain('"Sarah" Manchester');
+    const es = contactLinks({ host: "Ana", market: "es-costa-del-sol", licence: "VUT/MA/12345" });
+    expect(es.some(l => l.label === "Companies House")).toBe(false);
+    expect(es.some(l => decodeURIComponent(l.url).includes('"VUT/MA/12345"'))).toBe(true);
+    expect(contactLinks({}).map(l => l.label)).toEqual(["Google Lens"]);
   });
 });
