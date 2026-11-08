@@ -42,13 +42,13 @@ export function makePass(memberId: string) {
 export async function requireScout(req: Request): Promise<ScoutMember> {
   const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
   const [body, sig] = token.split(".");
-  if (!body || !sig || !safeEqual(createHmac("sha256", secret()).update(body).digest("base64url"), sig)) throw new HttpError(401, "Pehle sign in karo");
+  if (!body || !sig || !safeEqual(createHmac("sha256", secret()).update(body).digest("base64url"), sig)) throw new HttpError(401, "Please sign in");
   let p: { m?: string; e?: number };
-  try { p = JSON.parse(Buffer.from(body, "base64url").toString()); } catch { throw new HttpError(401, "Pehle sign in karo"); }
-  if (!p.m || !p.e || p.e < Date.now()) throw new HttpError(401, "Sign-in purana ho gaya, dobara sign in karo");
+  try { p = JSON.parse(Buffer.from(body, "base64url").toString()); } catch { throw new HttpError(401, "Please sign in"); }
+  if (!p.m || !p.e || p.e < Date.now()) throw new HttpError(401, "Your sign-in expired. Please sign in again");
   const { data, error } = await adminClient().from("scout_members").select("id, name, is_admin, daily_goal").eq("id", p.m).maybeSingle();
   if (error) throw new HttpError(500, error.message);
-  if (!data) throw new HttpError(401, "Ye member ab team mein nahi");
+  if (!data) throw new HttpError(401, "This member is no longer on the team");
   return data as ScoutMember;
 }
 
@@ -56,13 +56,13 @@ export async function signIn(name: string, pin: string) {
   const db = adminClient();
   const { data: m, error } = await db.from("scout_members").select("id, pin_hash, failed_attempts, locked_until").eq("name", name).maybeSingle();
   if (error) throw new HttpError(500, error.message);
-  if (!m) throw new HttpError(401, "Naam ya PIN galat hai");
-  if (m.locked_until && new Date(m.locked_until).getTime() > Date.now()) throw new HttpError(429, `Bohat dafa galat PIN. ${LOCK_MINUTES} minute baad try karo.`);
-  if (!m.pin_hash) throw new HttpError(403, "Aapka PIN abhi set nahi hua. Yahya se PIN lo.");
+  if (!m) throw new HttpError(401, "Wrong name or PIN");
+  if (m.locked_until && new Date(m.locked_until).getTime() > Date.now()) throw new HttpError(429, `Too many wrong PINs. Try again in ${LOCK_MINUTES} minutes.`);
+  if (!m.pin_hash) throw new HttpError(403, "Your PIN isn't set yet. Ask Yahya for one.");
   if (!pinMatches(pin, m.pin_hash)) {
     const tries = (m.failed_attempts ?? 0) + 1;
     await db.from("scout_members").update(tries >= MAX_TRIES ? { failed_attempts: 0, locked_until: new Date(Date.now() + LOCK_MINUTES * 60_000).toISOString() } : { failed_attempts: tries }).eq("id", m.id);
-    throw new HttpError(401, "Naam ya PIN galat hai");
+    throw new HttpError(401, "Wrong name or PIN");
   }
   await db.from("scout_members").update({ failed_attempts: 0, locked_until: null }).eq("id", m.id);
   return makePass(m.id);

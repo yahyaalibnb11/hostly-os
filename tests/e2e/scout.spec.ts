@@ -31,17 +31,17 @@ async function open(page: Page) {
 
 test("sign-in shows the team names and a PIN box", async ({ page }) => {
   await page.route("**/api/scout/members", r => r.fulfill({ json: { names: ["Yahya", "Aon", "Eassa", "Shahzaib"] } }));
-  await page.route("**/api/scout/login", r => r.fulfill({ status: 401, json: { error: "Naam ya PIN galat hai" } }));
+  await page.route("**/api/scout/login", r => r.fulfill({ status: 401, json: { error: "Wrong name or PIN" } }));
   await page.goto("/scout");
   await page.getByRole("button", { name: "Shahzaib" }).click();
   await page.getByPlaceholder("• • • • • •").fill("111111");
-  await expect(page.getByText("Naam ya PIN galat hai")).toBeVisible();
+  await expect(page.getByText("Wrong name or PIN")).toBeVisible();
   if (process.env.SCOUT_SHOTS) await page.screenshot({ path: `${process.env.SCOUT_SHOTS}/signin.png` });
 });
 
 test("dashboard shows the leaderboard and the hottest leads", async ({ page }) => {
   await open(page);
-  await expect(page.getByText("Assalam o Alaikum")).toBeVisible();
+  await expect(page.getByText("Welcome back")).toBeVisible();
   await expect(page.getByText("Team leaderboard")).toBeVisible();
   await expect(page.getByRole("button", { name: /Cosy 2BR near Old Trafford/ })).toBeVisible();
   if (process.env.SCOUT_SHOTS) { await page.waitForTimeout(1200); await page.screenshot({ path: `${process.env.SCOUT_SHOTS}/dashboard.png`, fullPage: true }); }
@@ -49,27 +49,27 @@ test("dashboard shows the leaderboard and the hottest leads", async ({ page }) =
 
 test("a link already in the sheet is blocked", async ({ page }) => {
   await open(page);
-  await page.getByRole("button", { name: /Nayi listing add karo/ }).click();
+  await page.getByRole("button", { name: /Add a new listing/ }).click();
   await page.getByPlaceholder("https://www.airbnb.com/rooms/12345678").fill("https://www.airbnb.co.uk/rooms/1?adults=2");
-  await expect(page.getByText(/pehle se Eassa ne/)).toBeVisible();
-  await expect(page.getByRole("button", { name: /Listing save karo/ })).toBeDisabled();
+  await expect(page.getByText(/Eassa.*already added this listing/)).toBeVisible();
+  await expect(page.getByRole("button", { name: /Save listing/ })).toBeDisabled();
 });
 
 test("numbers and ticks build the score, solutions and pitch, then save", async ({ page }) => {
   const saved = await open(page);
-  await page.getByRole("button", { name: /Nayi listing add karo/ }).click();
+  await page.getByRole("button", { name: /Add a new listing/ }).click();
   await page.getByPlaceholder("https://www.airbnb.com/rooms/12345678").fill("https://www.airbnb.com/rooms/9");
-  await expect(page.getByText("Nayi listing hai")).toBeVisible();
+  await expect(page.getByText("New listing, carry on")).toBeVisible();
   await page.locator("select").first().selectOption("es-costa-del-sol");
   await page.getByPlaceholder("Sarah").fill("Maria Lopez");
   await page.getByPlaceholder("4.62").fill("4.5");
-  await page.getByRole("button", { name: /Photos andheri/ }).click();
-  await page.getByRole("button", { name: /Agle 30 din/ }).click();
-  await expect(page.getByRole("button", { name: /⚡ Rating 4.7 se kam/ })).toBeVisible();
+  await page.getByRole("button", { name: /Dark \/ blurry/ }).click();
+  await page.getByRole("button", { name: /Next 30 days mostly empty/ }).click();
+  await expect(page.getByRole("button", { name: /⚡ Rating below 4.7/ })).toBeVisible();
   await expect(page.locator("textarea").nth(2)).toHaveValue(/^Hi Maria,/);
   if (process.env.SCOUT_SHOTS) await page.screenshot({ path: `${process.env.SCOUT_SHOTS}/add.png`, fullPage: true });
-  await page.getByRole("button", { name: /Listing save karo/ }).click();
-  await expect(page.getByText(/Garam lead! Score 80/)).toBeVisible();
+  await page.getByRole("button", { name: /Save listing/ }).click();
+  await expect(page.getByText(/Hot lead! Score 80/)).toBeVisible();
   expect(saved[0]).toMatchObject({ link: "https://www.airbnb.com/rooms/9", market: "es-costa-del-sol", host_name: "Maria Lopez", rating: "4.5", status: "drafted" });
   expect(saved[0].problems).toEqual(["bad_photos", "empty_calendar"]);
 });
@@ -81,7 +81,7 @@ test("the sheet filters and downloads", async ({ page }) => {
   await page.locator("select").first().selectOption("Spain");
   await expect(page.getByRole("table").getByText("Zillertal chalet")).toHaveCount(0);
   const dl = page.waitForEvent("download");
-  await page.getByRole("button", { name: /Excel download \(1\)/ }).click();
+  await page.getByRole("button", { name: /Download Excel \(1\)/ }).click();
   expect((await dl).suggestedFilename()).toMatch(/^hostly-scout-.*\.csv$/);
 });
 
@@ -94,22 +94,22 @@ test("screenshots fill the form with AI", async ({ page }) => {
       platform: "airbnb", listing_id: "55443322", title: "Bright 2BR by the Etihad", host_name: "Priya", host_listings: 2, property_type: "2 BHK", city_or_area: "Manchester",
       market: "uk-manchester", rating: 4.61, reviews: 23, currency: "GBP", weekday_price: 89, weekend_price: 89, min_nights: 3, photos: 14, response_rate: 80,
       managed_by: "self", licence_number: "", problems: ["weak_cover", "boring_title"], other_problems: ["No parking info"], review_praise: ["Clean"], review_complaints: ["Noisy street"],
-      photo_quality: "Dark living room photos", summary_roman_urdu: "Photos andheri hain, pricing flat hai.", not_visible: ["licence"],
+      photo_quality: "Dark living room photos", summary: "Photos are dark and pricing is flat.", not_visible: ["licence"],
     } } });
   });
   await open(page);
   await page.unroute("**/api/scout/data");
   await page.route("**/api/scout/data", r => r.fulfill({ json: { me: ME, members: MEMBERS, listings: LISTINGS, ai: true } }));
   await page.reload();
-  await page.getByRole("button", { name: /Nayi listing add karo/ }).click();
+  await page.getByRole("button", { name: /Add a new listing/ }).click();
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
   await page.getByTestId("scan-files").setInputFiles([{ name: "a.png", mimeType: "image/png", buffer: png }, { name: "b.png", mimeType: "image/png", buffer: png }]);
-  await page.getByRole("button", { name: /2 screenshots scan karo/ }).click();
-  await expect(page.getByText("Photos andheri hain")).toBeVisible();
+  await page.getByRole("button", { name: /Scan 2 screenshots/ }).click();
+  await expect(page.getByText("Photos are dark")).toBeVisible();
   await expect(page.getByPlaceholder("https://www.airbnb.com/rooms/12345678")).toHaveValue("https://www.airbnb.com/rooms/55443322");
   await expect(page.getByPlaceholder("Sarah")).toHaveValue("Priya");
   await expect(page.getByPlaceholder("Sea view 2BR with pool, 5 min to beach")).toHaveValue("Bright 2BR by the Etihad");
-  await expect(page.getByRole("button", { name: /✓ Cover photo kamzor/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /✓ Weak cover photo/ })).toBeVisible();
   await expect(page.getByRole("link", { name: /Companies House/ })).toBeVisible();
   if (process.env.SCOUT_SHOTS) await page.screenshot({ path: `${process.env.SCOUT_SHOTS}/scan.png`, fullPage: true });
 });

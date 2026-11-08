@@ -28,19 +28,19 @@ export const COUNTRIES = ["UK", "Spain", "Austria", "Europe", "Other"];
 
 export const PROPERTY_TYPES = ["Apartment", "Studio", "1 BHK", "2 BHK", "3 BHK", "4+ BHK", "Home", "Villa", "Cabin", "Chalet", "Resort", "Other"];
 export const MANAGED_BY = [
-  { id: "self", label: "Host khud (self-managed)" },
-  { id: "cohost", label: "Co-host ke saath" },
+  { id: "self", label: "Host (self-managed)" },
+  { id: "cohost", label: "Has a co-host" },
   { id: "company", label: "Management company" },
-  { id: "unknown", label: "Pata nahi" },
+  { id: "unknown", label: "Not sure" },
 ];
 export const STATUSES = [
-  { id: "new", label: "Naya", color: "bg-stone-600" },
-  { id: "drafted", label: "Draft tayyar", color: "bg-sky-700" },
-  { id: "contacted", label: "Message bheja", color: "bg-indigo-600" },
-  { id: "replied", label: "Jawab aaya", color: "bg-amber-600" },
-  { id: "call", label: "Call booked", color: "bg-orange-600" },
-  { id: "won", label: "Deal ho gayi 🎉", color: "bg-emerald-600" },
-  { id: "lost", label: "Interest nahi", color: "bg-red-800" },
+  { id: "new", label: "New", color: "bg-slate-600" },
+  { id: "drafted", label: "Draft ready", color: "bg-sky-700" },
+  { id: "contacted", label: "Contacted", color: "bg-pool-deep" },
+  { id: "replied", label: "Replied", color: "bg-door-hi/70" },
+  { id: "call", label: "Call booked", color: "bg-door-deep" },
+  { id: "won", label: "Won 🎉", color: "bg-emerald-600" },
+  { id: "lost", label: "Not interested", color: "bg-red-800" },
 ];
 
 export type ListingInput = {
@@ -57,36 +57,36 @@ export type Problem = {
 
 const num = (v: unknown) => (v === null || v === undefined || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
 
-// Each problem: what the student sees (Roman Urdu), how many points, the fix, and one English line for the pitch.
+// Each problem: what the researcher sees, how many points, the fix, and one English line for the pitch.
 export const PROBLEMS: Problem[] = [
-  { id: "few_photos", group: "photos", label: "20 se kam photos", hint: "Photos ginti karo", points: 2, solution: "Professional shoot with 25-35 photos covering every room and the best features.", pitch: "the listing only shows a few photos, so guests can't picture the stay", auto: l => { const p = num(l.photos); return p !== null && p < 20; } },
-  { id: "bad_photos", group: "photos", label: "Photos andheri / dhundli / phone wali", hint: "Guest ki nazar se dekho", points: 3, solution: "Bright, wide-angle professional photos taken in daylight.", pitch: "the photos are dark and don't do the place justice" },
-  { id: "weak_cover", group: "photos", label: "Cover photo kamzor", hint: "Pehli photo mein best hissa nahi", points: 1, solution: "Lead with the strongest image (pool, view, living room) to lift clicks.", pitch: "the first photo isn't the strongest one, which costs clicks in search" },
-  { id: "boring_title", group: "photos", label: "Title boring / generic", hint: "Koi selling point nahi", points: 1, solution: "Rewrite the title with the top selling points (location, view, sleeps X).", pitch: "the title doesn't say what makes the place special" },
-  { id: "weak_description", group: "photos", label: "Description adhoori", hint: "Amenities, parking, check-in info missing", points: 1, solution: "Full description: highlights first, then rooms, amenities, parking and check-in.", pitch: "the description leaves out details guests look for" },
-  { id: "low_rating", group: "reviews", label: "Rating 4.7 se kam", hint: "Auto: rating dalo", points: 2, solution: "Fix the repeated issues, improve cleaning and guest communication to lift the rating.", pitch: "the rating is below 4.7, which pushes the listing down in search", auto: l => { const r = num(l.rating); return r !== null && r > 0 && r < 4.7; } },
-  { id: "few_reviews", group: "reviews", label: "10 se kam reviews", hint: "Auto: reviews dalo", points: 1, solution: "Launch pricing and a review follow-up routine to build social proof fast.", pitch: "there are only a few reviews, so new guests hesitate to book", auto: l => { const r = num(l.reviews); return r !== null && r < 10; } },
-  { id: "repeat_complaint", group: "reviews", label: "Reviews mein ek hi shikayat bar bar", hint: "Safai, check-in, reply late", points: 2, solution: "Fix the root cause (cleaning checklist, self check-in, clear guide) and reply to every review.", pitch: "a few reviews mention the same issue, which is easy to fix" },
-  { id: "slow_response", group: "reviews", label: "Response rate 90% se kam", hint: "Auto: response rate dalo", points: 1, solution: "Replies within 1 hour, 24/7, with saved replies and a guest guide.", pitch: "the response rate is low, and Airbnb ranks slow hosts lower", auto: l => { const r = num(l.response_rate); return r !== null && r < 90; } },
-  { id: "no_badge", group: "reviews", label: "Superhost / Guest Favourite nahi", hint: "Badge check karo", points: 1, solution: "Hit Superhost targets: 4.8+ rating, 90%+ response, no cancellations.", pitch: "the listing doesn't have a Superhost or Guest Favourite badge yet" },
-  { id: "flat_pricing", group: "pricing", label: "Weekend aur weekday price same", hint: "Auto: dono price dalo", points: 2, solution: "Dynamic pricing with higher weekend and event rates.", pitch: "weekend and weekday prices are the same, so weekend money is left on the table", auto: l => { const a = num(l.weekday_price), b = num(l.weekend_price); return a !== null && b !== null && a > 0 && b <= a; } },
-  { id: "empty_calendar", group: "pricing", label: "Agle 30 din aadhe se zyada khaali", hint: "Calendar check karo", points: 3, solution: "Re-price against comps and fill gaps with smart discounts.", pitch: "the next 30 days look mostly empty while similar homes nearby are booked" },
-  { id: "price_off", group: "pricing", label: "Price comps se bohat upar / neeche", hint: "5-10 milti julti listings se compare", points: 2, solution: "Set prices from 5-10 comparable listings and review weekly.", pitch: "the nightly price is far from similar homes nearby" },
-  { id: "high_min_nights", group: "pricing", label: "Minimum nights 3 ya zyada", hint: "Auto: min nights dalo", points: 1, solution: "Shorter minimum stays on weekdays and for gap nights.", pitch: "the minimum stay is long, which blocks many short bookings", auto: l => { const n = num(l.min_nights); return n !== null && n >= 3; } },
-  { id: "high_cleaning_fee", group: "pricing", label: "Cleaning fee zyada", hint: "Total price mehngi lagti hai", points: 1, solution: "Balance the cleaning fee and nightly rate so the total looks competitive.", pitch: "the cleaning fee makes the total price look high" },
-  { id: "no_instant_book", group: "pricing", label: "Instant Book band", hint: "Listing pe check karo", points: 1, solution: "Turn on Instant Book with sensible guest requirements.", pitch: "Instant Book is off, and many guests filter for it" },
-  { id: "self_managed", group: "host", label: "Host khud manage kar raha hai", hint: "Auto: managed by = self", points: 2, solution: "Full co-hosting: guest messages, cleaning, pricing and reviews handled for them.", pitch: "", auto: l => l.managed_by === "self" },
-  { id: "small_host", group: "host", label: "Host ki sirf 1-3 listings", hint: "Auto: number of properties dalo", points: 1, solution: "Hands-off service so a busy owner gets time back.", pitch: "", auto: l => { const n = num(l.host_listings); return n !== null && n >= 1 && n <= 3; } },
-  { id: "weak_company", group: "host", label: "Kamzor company ke paas", hint: "Company ki baaqi listings ke reviews bure", points: 2, solution: "Show a clear plan and better numbers than the current manager.", pitch: "" },
-  { id: "far_owner", group: "host", label: "Owner door rehta hai", hint: "Doosra sheher / mulk", points: 2, solution: "Local on-the-ground team for check-ins, cleaning and repairs.", pitch: "" },
-  { id: "no_licence", group: "rules", label: "Licence number listing pe nahi", hint: "Spain/Portugal/Greece mein zaroori", points: 1, solution: "Help with licence display and guest registration paperwork.", pitch: "the licence number isn't shown on the listing, which platforms now require" },
+  { id: "few_photos", group: "photos", label: "Fewer than 20 photos", hint: "Count the photos", points: 2, solution: "Professional shoot with 25-35 photos covering every room and the best features.", pitch: "the listing only shows a few photos, so guests can't picture the stay", auto: l => { const p = num(l.photos); return p !== null && p < 20; } },
+  { id: "bad_photos", group: "photos", label: "Dark / blurry / phone photos", hint: "Look as a guest would", points: 3, solution: "Bright, wide-angle professional photos taken in daylight.", pitch: "the photos are dark and don't do the place justice" },
+  { id: "weak_cover", group: "photos", label: "Weak cover photo", hint: "First photo isn't the best feature", points: 1, solution: "Lead with the strongest image (pool, view, living room) to lift clicks.", pitch: "the first photo isn't the strongest one, which costs clicks in search" },
+  { id: "boring_title", group: "photos", label: "Boring / generic title", hint: "No selling point", points: 1, solution: "Rewrite the title with the top selling points (location, view, sleeps X).", pitch: "the title doesn't say what makes the place special" },
+  { id: "weak_description", group: "photos", label: "Thin description", hint: "Amenities, parking, check-in info missing", points: 1, solution: "Full description: highlights first, then rooms, amenities, parking and check-in.", pitch: "the description leaves out details guests look for" },
+  { id: "low_rating", group: "reviews", label: "Rating below 4.7", hint: "Auto: enter the rating", points: 2, solution: "Fix the repeated issues, improve cleaning and guest communication to lift the rating.", pitch: "the rating is below 4.7, which pushes the listing down in search", auto: l => { const r = num(l.rating); return r !== null && r > 0 && r < 4.7; } },
+  { id: "few_reviews", group: "reviews", label: "Fewer than 10 reviews", hint: "Auto: enter the reviews", points: 1, solution: "Launch pricing and a review follow-up routine to build social proof fast.", pitch: "there are only a few reviews, so new guests hesitate to book", auto: l => { const r = num(l.reviews); return r !== null && r < 10; } },
+  { id: "repeat_complaint", group: "reviews", label: "Same complaint in several reviews", hint: "Cleaning, check-in, slow replies", points: 2, solution: "Fix the root cause (cleaning checklist, self check-in, clear guide) and reply to every review.", pitch: "a few reviews mention the same issue, which is easy to fix" },
+  { id: "slow_response", group: "reviews", label: "Response rate below 90%", hint: "Auto: enter the response rate", points: 1, solution: "Replies within 1 hour, 24/7, with saved replies and a guest guide.", pitch: "the response rate is low, and Airbnb ranks slow hosts lower", auto: l => { const r = num(l.response_rate); return r !== null && r < 90; } },
+  { id: "no_badge", group: "reviews", label: "No Superhost / Guest Favourite", hint: "Check the badge", points: 1, solution: "Hit Superhost targets: 4.8+ rating, 90%+ response, no cancellations.", pitch: "the listing doesn't have a Superhost or Guest Favourite badge yet" },
+  { id: "flat_pricing", group: "pricing", label: "Same weekday and weekend price", hint: "Auto: enter both prices", points: 2, solution: "Dynamic pricing with higher weekend and event rates.", pitch: "weekend and weekday prices are the same, so weekend money is left on the table", auto: l => { const a = num(l.weekday_price), b = num(l.weekend_price); return a !== null && b !== null && a > 0 && b <= a; } },
+  { id: "empty_calendar", group: "pricing", label: "Next 30 days mostly empty", hint: "Check the calendar", points: 3, solution: "Re-price against comps and fill gaps with smart discounts.", pitch: "the next 30 days look mostly empty while similar homes nearby are booked" },
+  { id: "price_off", group: "pricing", label: "Price far from comps", hint: "Compare with 5-10 similar listings", points: 2, solution: "Set prices from 5-10 comparable listings and review weekly.", pitch: "the nightly price is far from similar homes nearby" },
+  { id: "high_min_nights", group: "pricing", label: "Minimum stay 3+ nights", hint: "Auto: enter minimum nights", points: 1, solution: "Shorter minimum stays on weekdays and for gap nights.", pitch: "the minimum stay is long, which blocks many short bookings", auto: l => { const n = num(l.min_nights); return n !== null && n >= 3; } },
+  { id: "high_cleaning_fee", group: "pricing", label: "High cleaning fee", hint: "Total price looks expensive", points: 1, solution: "Balance the cleaning fee and nightly rate so the total looks competitive.", pitch: "the cleaning fee makes the total price look high" },
+  { id: "no_instant_book", group: "pricing", label: "Instant Book off", hint: "Check on the listing", points: 1, solution: "Turn on Instant Book with sensible guest requirements.", pitch: "Instant Book is off, and many guests filter for it" },
+  { id: "self_managed", group: "host", label: "Host manages it alone", hint: "Auto: managed by = self", points: 2, solution: "Full co-hosting: guest messages, cleaning, pricing and reviews handled for them.", pitch: "", auto: l => l.managed_by === "self" },
+  { id: "small_host", group: "host", label: "Host has only 1-3 listings", hint: "Auto: enter number of properties", points: 1, solution: "Hands-off service so a busy owner gets time back.", pitch: "", auto: l => { const n = num(l.host_listings); return n !== null && n >= 1 && n <= 3; } },
+  { id: "weak_company", group: "host", label: "Managed by a weak company", hint: "Their other listings have bad reviews", points: 2, solution: "Show a clear plan and better numbers than the current manager.", pitch: "" },
+  { id: "far_owner", group: "host", label: "Owner lives far away", hint: "Another city / country", points: 2, solution: "Local on-the-ground team for check-ins, cleaning and repairs.", pitch: "" },
+  { id: "no_licence", group: "rules", label: "No licence number shown", hint: "Required in Spain / Portugal / Greece", points: 1, solution: "Help with licence display and guest registration paperwork.", pitch: "the licence number isn't shown on the listing, which platforms now require" },
 ];
 export const problemById = (id: string) => PROBLEMS.find(p => p.id === id);
 export const PROBLEM_GROUPS: { id: Problem["group"]; label: string }[] = [
-  { id: "photos", label: "📸 Photos aur listing" },
-  { id: "reviews", label: "⭐ Reviews aur guests" },
-  { id: "pricing", label: "💰 Price aur calendar" },
-  { id: "host", label: "👤 Host ki situation" },
+  { id: "photos", label: "📸 Photos & listing" },
+  { id: "reviews", label: "⭐ Reviews & guests" },
+  { id: "pricing", label: "💰 Price & calendar" },
+  { id: "host", label: "👤 Host situation" },
   { id: "rules", label: "📜 Rules" },
 ];
 
@@ -104,9 +104,9 @@ export function scoreListing(l: ListingInput, picked: string[], customCount = 0)
 }
 
 export const GRADE = {
-  hot: { label: "🔥 Garam lead", text: "Aaj hi message karo", ring: "#f97316" },
-  warm: { label: "☀️ Achha lead", text: "Personal message bhejo", ring: "#eab308" },
-  cold: { label: "❄️ Thanda lead", text: "Short message, zyada time nahi", ring: "#64748b" },
+  hot: { label: "🔥 Hot lead", text: "Message them today", ring: "#FFB347" },
+  warm: { label: "☀️ Warm lead", text: "Send a personal message", ring: "#E8892B" },
+  cold: { label: "❄️ Cold lead", text: "Short message, don't spend long", ring: "#64748b" },
 };
 
 export const solutionsText = (ids: string[], custom: string) =>

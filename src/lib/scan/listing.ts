@@ -40,10 +40,10 @@ export const SCAN_SCHEMA = {
     review_praise: { type: "array", items: { type: "string" }, description: "What guests praise in the visible reviews, max 4 short phrases" },
     review_complaints: { type: "array", items: { type: "string" }, description: "What guests complain about in the visible reviews, max 4 short phrases" },
     photo_quality: str("One sentence on photo quality (light, angles, cover photo) if photos are visible, else empty"),
-    summary_roman_urdu: str("2-3 short lines in Roman Urdu for the student: what is weak about this listing and the best pitch angle"),
+    summary: str("2-3 short, plain-English lines for the researcher: what is weak about this listing and the best pitch angle"),
     not_visible: { type: "array", items: { type: "string" }, description: "Scout fields you could not find in the images, so the student fills them in" },
   },
-  required: ["platform", "listing_id", "title", "host_name", "host_listings", "property_type", "city_or_area", "market", "rating", "reviews", "currency", "weekday_price", "weekend_price", "min_nights", "photos", "response_rate", "managed_by", "licence_number", "problems", "other_problems", "review_praise", "review_complaints", "photo_quality", "summary_roman_urdu", "not_visible"],
+  required: ["platform", "listing_id", "title", "host_name", "host_listings", "property_type", "city_or_area", "market", "rating", "reviews", "currency", "weekday_price", "weekend_price", "min_nights", "photos", "response_rate", "managed_by", "licence_number", "problems", "other_problems", "review_praise", "review_complaints", "photo_quality", "summary", "not_visible"],
   additionalProperties: false,
 };
 
@@ -53,12 +53,12 @@ export type ScanImage = { type?: string; data?: string };
 
 export async function scanListingImages(input: ScanImage[]) {
   const images = Array.isArray(input) ? input.slice(0, MAX_IMAGES) : [];
-  if (!images.length) throw new HttpError(400, "Kam se kam ek screenshot do");
+  if (!images.length) throw new HttpError(400, "Add at least one screenshot");
   const blocks = images.map((im, i) => {
     const type = TYPES.find(t => t === im.type);
     const data = typeof im.data === "string" ? im.data : "";
-    if (!type || !data || !/^[A-Za-z0-9+/=]+$/.test(data)) throw new HttpError(400, `Screenshot ${i + 1} parha nahi ja saka`);
-    if (data.length * 0.75 > MAX_BYTES) throw new HttpError(400, `Screenshot ${i + 1} bohat bari hai`);
+    if (!type || !data || !/^[A-Za-z0-9+/=]+$/.test(data)) throw new HttpError(400, `Screenshot ${i + 1} couldn't be read`);
+    if (data.length * 0.75 > MAX_BYTES) throw new HttpError(400, `Screenshot ${i + 1} is too large`);
     return { type: "image" as const, source: { type: "base64" as const, media_type: type, data } };
   });
   const client = new Anthropic({ apiKey: env.anthropicKey });
@@ -78,8 +78,8 @@ export async function scanListingImages(input: ScanImage[]) {
     ].join(" "),
     messages: [{ role: "user", content: [...blocks, { type: "text", text: "Fill in the listing audit from these images." }] }],
   });
-  if (msg.stop_reason === "refusal") throw new HttpError(422, "AI ne ye images nahi parhin. Doosre screenshots try karo.");
-  if (msg.stop_reason === "max_tokens") throw new HttpError(502, "AI ka jawab adhoora reh gaya. Dobara try karo.");
+  if (msg.stop_reason === "refusal") throw new HttpError(422, "The AI couldn't read these images. Try other screenshots.");
+  if (msg.stop_reason === "max_tokens") throw new HttpError(502, "The AI reply was cut off. Try again.");
   const text = msg.content.map(c => (c.type === "text" ? c.text : "")).join("");
-  try { return JSON.parse(text) as Record<string, unknown>; } catch { throw new HttpError(502, "AI ka jawab parha nahi ja saka. Dobara try karo."); }
+  try { return JSON.parse(text) as Record<string, unknown>; } catch { throw new HttpError(502, "Couldn't read the AI reply. Try again."); }
 }

@@ -11,11 +11,11 @@ export const maxDuration = 90;
 export async function POST(req: Request) {
   try {
     await requireScout(req);
-    if (!aiReady()) throw new HttpError(503, "AI abhi connect nahi. Vercel mein ANTHROPIC_API_KEY lagani hogi.");
+    if (!aiReady()) throw new HttpError(503, "AI isn't connected yet. Add ANTHROPIC_API_KEY in Vercel.");
     const b = (await req.json().catch(() => ({}))) as { images?: { type?: string; data?: string }[] };
     return Response.json({ result: await scanListingImages(b.images ?? []) });
   } catch (e) {
-    if (e instanceof Anthropic.APIError) return Response.json({ error: e.status === 401 ? "Anthropic API key galat hai" : `AI se rabta nahi hua (${e.status ?? "network"})` }, { status: 502 });
+    if (e instanceof Anthropic.APIError) return Response.json({ error: e.status === 401 ? "The Anthropic API key is wrong" : `Couldn't reach the AI (${e.status ?? "network"})` }, { status: 502 });
     return errorResponse(e);
   }
 }

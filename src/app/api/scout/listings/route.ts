@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     const n = (k: string, min: number, max: number, label: string, int = true) => {
       if (b[k] === "" || b[k] == null) return null;
       const v = Number(b[k]);
-      if (!Number.isFinite(v) || v < min || v > max || (int && !Number.isInteger(v))) throw new HttpError(400, `${label} sahi number nahi (${min}-${max})`);
+      if (!Number.isFinite(v) || v < min || v > max || (int && !Number.isInteger(v))) throw new HttpError(400, `${label} must be a number from ${min} to ${max}`);
       return int ? v : Math.round(v * 100) / 100;
     };
 
@@ -22,14 +22,14 @@ export async function POST(req: Request) {
     let existing: { id: string; added_by: string } | null = null;
     if (id) {
       const { data } = await db.from("scout_listings").select("id, added_by").eq("id", id).is("deleted_at", null).maybeSingle();
-      if (!data) throw new HttpError(404, "Ye listing nahi mili");
+      if (!data) throw new HttpError(404, "Listing not found");
       existing = data;
     }
 
     // A status-only update (from the pipeline buttons) can be done by anyone on the team.
     if (existing && Object.keys(b).every(k => ["id", "status", "pitch", "pitch_subject", "contact", "notes"].includes(k))) {
       const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
-      if ("status" in b) { if (!STATUSES.some(s => s.id === b.status)) throw new HttpError(400, "Status galat hai"); patch.status = b.status; }
+      if ("status" in b) { if (!STATUSES.some(s => s.id === b.status)) throw new HttpError(400, "Unknown status"); patch.status = b.status; }
       if ("pitch" in b) patch.pitch = str("pitch", 6000);
       if ("pitch_subject" in b) patch.pitch_subject = str("pitch_subject", 200);
       if ("contact" in b) patch.contact = str("contact", 300) || null;
@@ -38,13 +38,13 @@ export async function POST(req: Request) {
       if (error) throw new HttpError(400, error.message);
       return Response.json({ listing: data });
     }
-    if (existing && existing.added_by !== me.id && !me.is_admin) throw new HttpError(403, "Sirf jisne listing dali ya Yahya isse badal sakta hai");
+    if (existing && existing.added_by !== me.id && !me.is_admin) throw new HttpError(403, "Only the person who added this listing (or Yahya) can change it");
 
     const link = str("link", 1000);
     const key = linkKey(link);
-    if (!key) throw new HttpError(400, "Listing link sahi nahi. Poora Airbnb / Vrbo / Booking link paste karo.");
+    if (!key) throw new HttpError(400, "That link doesn't look right. Paste the full Airbnb / Vrbo / Booking link.");
     const market = marketById(str("market", 40));
-    if (!market) throw new HttpError(400, "Market chuno");
+    if (!market) throw new HttpError(400, "Pick a market");
 
     const row = {
       link, link_key: key, market: market.id,
@@ -83,7 +83,7 @@ export async function POST(req: Request) {
       if (error.code === "23505") {
         const { data: dup } = await db.from("scout_listings").select("scout_members(name)").eq("link_key", key).is("deleted_at", null).maybeSingle();
         const by = (dup?.scout_members as unknown as { name?: string } | null)?.name;
-        throw new HttpError(409, `Ye listing pehle se ${by ? `${by} ne` : ""} add ki hui hai`);
+        throw new HttpError(409, `This listing was already added${by ? ` by ${by}` : ""}`);
       }
       throw new HttpError(400, error.message);
     }
@@ -100,8 +100,8 @@ export async function DELETE(req: Request) {
     const id = new URL(req.url).searchParams.get("id") || "";
     const db = adminClient();
     const { data } = await db.from("scout_listings").select("id, added_by").eq("id", id).is("deleted_at", null).maybeSingle();
-    if (!data) throw new HttpError(404, "Ye listing nahi mili");
-    if (data.added_by !== me.id && !me.is_admin) throw new HttpError(403, "Sirf jisne listing dali ya Yahya isse hata sakta hai");
+    if (!data) throw new HttpError(404, "Listing not found");
+    if (data.added_by !== me.id && !me.is_admin) throw new HttpError(403, "Only the person who added this listing (or Yahya) can remove it");
     const { error } = await db.from("scout_listings").update({ deleted_at: new Date().toISOString() }).eq("id", id);
     if (error) throw new HttpError(400, error.message);
     return Response.json({ ok: true });

@@ -30,7 +30,7 @@ export function CountUp({ value, duration = 900 }: { value: number; duration?: n
   return <>{shown.toLocaleString()}</>;
 }
 
-export function Ring({ value, max = 100, size = 120, stroke = 10, color = "#f97316", children }: { value: number; max?: number; size?: number; stroke?: number; color?: string; children?: React.ReactNode }) {
+export function Ring({ value, max = 100, size = 120, stroke = 10, color = "#FFB347", children }: { value: number; max?: number; size?: number; stroke?: number; color?: string; children?: React.ReactNode }) {
   const r = (size - stroke) / 2, c = 2 * Math.PI * r;
   const pct = Math.max(0, Math.min(1, max ? value / max : 0));
   return (
@@ -54,7 +54,7 @@ export function useConfetti() {
     cv.width = innerWidth; cv.height = innerHeight;
     document.body.appendChild(cv);
     const ctx = cv.getContext("2d")!;
-    const colors = ["#f97316", "#fde68a", "#e29a64", "#34d399", "#818cf8", "#f472b6"];
+    const colors = ["#FFB347", "#FFDDA0", "#E8892B", "#E9E4DA", "#46C2B4", "#FFE6B8"];
     const parts = Array.from({ length: big ? 220 : 110 }, () => ({
       x: innerWidth / 2 + (Math.random() - .5) * 200, y: innerHeight * .55,
       vx: (Math.random() - .5) * 16, vy: -Math.random() * 18 - 6, s: Math.random() * 7 + 4,
@@ -95,22 +95,41 @@ export const H = ({ children, right }: { children: React.ReactNode; right?: Reac
 
 export const ago = (s: string) => {
   const m = Math.round((Date.now() - new Date(s).getTime()) / 60000);
-  if (m < 1) return "abhi";
-  if (m < 60) return `${m} min pehle`;
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
   const h = Math.round(m / 60);
-  if (h < 24) return `${h} ghante pehle`;
+  if (h < 24) return `${h}h ago`;
   const d = Math.round(h / 24);
-  return d === 1 ? "kal" : `${d} din pehle`;
+  return d === 1 ? "yesterday" : `${d} days ago`;
 };
 
 export const startOfDay = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
 export const startOfWeek = () => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };
 
-export const AVATAR_COLORS = ["from-orange-500 to-amber-400", "from-indigo-500 to-sky-400", "from-emerald-500 to-teal-400", "from-pink-500 to-rose-400", "from-violet-500 to-fuchsia-400"];
+export const AVATAR_COLORS = ["from-door-deep to-door", "from-pool-deep to-pool", "from-slate-500 to-slate-300", "from-[#C76B4A] to-[#F2A27E]", "from-[#5A6B8C] to-[#9AA3B2]"];
 export function Avatar({ name, i, size = 36 }: { name: string; i: number; size?: number }) {
   return (
-    <div className={`flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br font-black text-white ${AVATAR_COLORS[i % AVATAR_COLORS.length]}`} style={{ width: size, height: size, fontSize: size * .42 }}>
+    <div className={`flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br font-black text-night ${AVATAR_COLORS[i % AVATAR_COLORS.length]}`} style={{ width: size, height: size, fontSize: size * .42 }}>
       {name.charAt(0).toUpperCase()}
     </div>
+  );
+}
+
+// Hostly "Open Door" mark: an H that is also a house, with warm light in the door.
+export function Logo({ size = 40, className = "" }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" className={className} role="img" aria-label="Hostly">
+      <defs>
+        <linearGradient id="scout-door" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#FFE6B8" /><stop offset=".55" stopColor="#FFB347" /><stop offset="1" stopColor="#E8892B" />
+        </linearGradient>
+      </defs>
+      <path d="M12 45 L50 14 L88 45" fill="none" stroke="#E9E4DA" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="19" y="47" width="13" height="43" rx="2.5" fill="#E9E4DA" />
+      <rect x="68" y="47" width="13" height="43" rx="2.5" fill="#E9E4DA" />
+      <rect x="32" y="58" width="36" height="9" fill="#E9E4DA" />
+      <rect x="39" y="71" width="22" height="19" rx="2" fill="url(#scout-door)" />
+      <rect x="45" y="38" width="10" height="10" rx="1.5" fill="url(#scout-door)" />
+    </svg>
   );
 }

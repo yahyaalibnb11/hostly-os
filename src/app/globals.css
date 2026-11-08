@@ -11,7 +11,7 @@ button, input, select, textarea { font: inherit; }
 @keyframes scout-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @keyframes scout-pop { 0% { transform: scale(.6); opacity: 0; } 70% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
 @keyframes scout-shake { 0%,100% { transform: none; } 20%,60% { transform: translateX(-6px); } 40%,80% { transform: translateX(6px); } }
-@keyframes scout-glow { 0%,100% { box-shadow: 0 0 0 0 rgba(249,115,22,.55); } 50% { box-shadow: 0 0 0 8px rgba(249,115,22,0); } }
+@keyframes scout-glow { 0%,100% { box-shadow: 0 0 0 0 rgba(255,179,71,.55); } 50% { box-shadow: 0 0 0 8px rgba(255,179,71,0); } }
 @keyframes scout-shine { from { background-position: -200% 0; } to { background-position: 200% 0; } }
 @keyframes scout-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 @keyframes scout-toast { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
@@ -22,13 +22,15 @@ button, input, select, textarea { font: inherit; }
 .scout-float { animation: scout-float 3.5s ease-in-out infinite; }
 .scout-toast { animation: scout-toast .35s cubic-bezier(.2,.8,.2,1) both; }
 @keyframes scout-scan { 0% { top: -24px; } 100% { top: 100%; } }
-.scout-scanline { background: linear-gradient(180deg, transparent, rgba(217,70,239,.7), transparent); animation: scout-scan 1.4s ease-in-out infinite; }
-.scout-shine { background: linear-gradient(90deg, #fb923c, #fde68a, #f97316, #fb923c); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: scout-shine 6s linear infinite; }
-.scout-bg { background: radial-gradient(1200px 600px at 10% -10%, rgba(200,121,69,.22), transparent 60%), radial-gradient(900px 500px at 110% 10%, rgba(99,102,241,.14), transparent 60%), #0c0b0a; min-height: 100vh; }
-.scout-card { background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.02)); border: 1px solid rgba(255,255,255,.08); border-radius: 18px; backdrop-filter: blur(8px); }
-.scout-input { width: 100%; min-width: 0; border-radius: 10px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); padding: .55rem .75rem; color: #f4f0eb; transition: border-color .2s, box-shadow .2s; }
-.scout-input:focus { outline: none; border-color: #e29a64; box-shadow: 0 0 0 3px rgba(226,154,100,.25); }
-.scout-input option, .scout-input optgroup { background: #191715; color: #f4f0eb; }
+.scout-scanline { background: linear-gradient(180deg, transparent, rgba(70,194,180,.8), transparent); animation: scout-scan 1.4s ease-in-out infinite; }
+.scout-shine { background: linear-gradient(90deg, #FFB347, #FFE6B8, #E8892B, #FFB347); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: scout-shine 6s linear infinite; }
+.scout-bg { background: radial-gradient(900px 520px at 50% 115%, rgba(255,179,71,.16), transparent 65%), radial-gradient(1000px 500px at 0% -10%, rgba(35,44,59,.9), transparent 60%), #0B0F16; min-height: 100vh; color: #E9E4DA; font-family: "Instrument Sans", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+.scout-bg h1, .scout-bg h2, .scout-bg h3, .scout-display { font-family: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif; letter-spacing: -.02em; }
+.scout-bg ::selection { background: #FFB347; color: #0B0F16; }
+.scout-card { background: #121824; border: 1px solid #232C3B; border-radius: 18px; }
+.scout-input { width: 100%; min-width: 0; border-radius: 10px; background: #0B0F16; border: 1px solid #232C3B; padding: .55rem .75rem; color: #E9E4DA; transition: border-color .2s, box-shadow .2s; }
+.scout-input:focus { outline: none; border-color: #FFB347; box-shadow: 0 0 0 3px rgba(255,179,71,.22); }
+.scout-input option, .scout-input optgroup { background: #121824; color: #E9E4DA; }
 .scout-bar { transition: width 1s cubic-bezier(.2,.8,.2,1); }
 @media (prefers-reduced-motion: reduce) {
   .scout-rise, .scout-pop, .scout-shake, .scout-glow, .scout-float, .scout-toast, .scout-shine, .scout-scanline { animation: none !important; }

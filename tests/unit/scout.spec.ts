@@ -52,7 +52,7 @@ test.describe("scout", () => {
 
   test("contact search links use the host, city and market", () => {
     const uk = contactLinks({ host: "Sarah", market: "uk-manchester", title: "Cosy 2BR", licence: "" });
-    expect(uk.map(l => l.label)).toEqual(expect.arrayContaining(["Google: host + city", "Facebook", "Companies House", "Title Google pe", "Google Lens"]));
+    expect(uk.map(l => l.label)).toEqual(expect.arrayContaining(["Google: host + city", "Facebook", "Companies House", "Title on Google", "Google Lens"]));
     expect(decodeURIComponent(uk[0].url)).toContain('"Sarah" Manchester');
     const es = contactLinks({ host: "Ana", market: "es-costa-del-sol", licence: "VUT/MA/12345" });
     expect(es.some(l => l.label === "Companies House")).toBe(false);

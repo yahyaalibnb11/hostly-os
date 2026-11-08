@@ -5,7 +5,7 @@ import { marketById } from "@/lib/scout/catalog";
 import type { Api } from "./ui";
 
 // Listing Scanner UI: camera, upload or paste screenshots of a listing, and AI fills the form.
-// Also the "Contact dhundo" box, so the team reaches hosts off Airbnb (never in the Airbnb inbox).
+// Also the "Find contact" box, so the team reaches hosts off Airbnb (never in the Airbnb inbox).
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type ScanResult = Record<string, any>;
@@ -28,7 +28,7 @@ async function shrink(file: Blob, quality = 0.82): Promise<Omit<Shot, "id">> {
   return { url, type: "image/jpeg", data, bytes: Math.round(data.length * 0.75) };
 }
 
-const STEPS = ["Screenshots parh raha hai…", "Rating aur reviews gin raha hai…", "Price aur nights dhoond raha hai…", "Photos aur title check kar raha hai…", "Reviews mein complaints dhoond raha hai…", "Problems aur score bana raha hai…"];
+const STEPS = ["Reading the screenshots…", "Counting rating and reviews…", "Finding prices and nights…", "Checking photos and title…", "Looking for guest complaints…", "Building problems and score…"];
 
 export function ScreenshotScanner({ api, ai, onResult, toast }: { api: Api; ai: boolean; onResult: (r: ScanResult) => void; toast: (m: string, k?: "ok" | "err") => void }) {
   const [shots, setShots] = useState<Shot[]>([]);
@@ -43,12 +43,12 @@ export function ScreenshotScanner({ api, ai, onResult, toast }: { api: Api; ai: 
     const imgs = list.filter(f => f.type.startsWith("image/"));
     if (!imgs.length) return;
     const room = MAX_SHOTS - shots.length;
-    if (room <= 0) { toast(`Zyada se zyada ${MAX_SHOTS} screenshots`, "err"); return; }
+    if (room <= 0) { toast(`${MAX_SHOTS} screenshots at most`, "err"); return; }
     try {
       const done = await Promise.all(imgs.slice(0, room).map(shrink));
       setShots(s => [...s, ...done.map(d => ({ ...d, id: Math.random().toString(36).slice(2) }))]);
-      if (imgs.length > room) toast(`Sirf ${MAX_SHOTS} screenshots tak, baaqi chhor diye`, "err");
-    } catch { toast("Ye image khul nahi saki. Screenshot JPG/PNG mein lo.", "err"); }
+      if (imgs.length > room) toast(`Only the first ${MAX_SHOTS} screenshots were added`, "err");
+    } catch { toast("That image couldn't be opened. Use a JPG or PNG screenshot.", "err"); }
   }, [shots.length, toast]);
 
   // Ctrl+V / paste from the clipboard anywhere on the page.
@@ -78,7 +78,7 @@ export function ScreenshotScanner({ api, ai, onResult, toast }: { api: Api; ai: 
       }
       const r = await api("/api/scout/scan", { body: { images: list.map(s => ({ type: s.type, data: s.data })) } });
       setResult(r.result); onResult(r.result);
-      toast("✨ Data bhar diya! Ek dafa check kar lo");
+      toast("✨ Form filled! Give it a quick check");
     } catch (e) { toast((e as Error).message, "err"); } finally { setBusy(false); }
   };
 
@@ -86,23 +86,23 @@ export function ScreenshotScanner({ api, ai, onResult, toast }: { api: Api; ai: 
 
   return (
     <div className="scout-card scout-rise relative overflow-hidden p-4 md:p-5">
-      <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-fuchsia-500/20 blur-3xl" />
+      <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-pool/20 blur-3xl" />
       <div className="mb-3 flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-xl shadow-lg shadow-fuchsia-500/30">📸</div>
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-pool-deep to-pool text-xl shadow-lg shadow-pool/30">📸</div>
         <div>
-          <h3 className="font-extrabold">Screenshots se auto-bharo <span className="ml-1 rounded-full bg-fuchsia-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-fuchsia-200">AI</span></h3>
-          <p className="text-xs text-stone-400">Listing ke 3-6 screenshots lo: upar wala hissa (title, rating), host profile, price/calendar, reviews. AI sab khud bhar dega.</p>
+          <h3 className="font-extrabold">Auto-fill from screenshots <span className="ml-1 rounded-full bg-pool/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-pool-hi">AI</span></h3>
+          <p className="text-xs text-mist">Take 3-6 screenshots of the listing: the top (title, rating), the host profile, price/calendar and reviews. AI fills in the rest.</p>
         </div>
       </div>
 
-      {!ai && <p className="mb-3 rounded-xl border border-amber-400/40 bg-amber-400/10 p-3 text-xs text-amber-200">AI abhi connect nahi hai. Yahya Vercel mein ANTHROPIC_API_KEY lagaye ga, phir ye button chalega. Tab tak form haath se bharo.</p>}
+      {!ai && <p className="mb-3 rounded-xl border border-door/40 bg-door-hi/10 p-3 text-xs text-door-hi">AI isn&apos;t connected yet. Once Yahya adds the ANTHROPIC_API_KEY in Vercel this will work. Until then, fill the form by hand.</p>}
 
       <div onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={e => { e.preventDefault(); setDrag(false); add(Array.from(e.dataTransfer.files)); }}
-        className={`rounded-2xl border-2 border-dashed p-3 transition ${drag ? "border-fuchsia-400 bg-fuchsia-500/10" : "border-white/15"}`}>
+        className={`rounded-2xl border-2 border-dashed p-3 transition ${drag ? "border-pool bg-pool/10" : "border-white/15"}`}>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => cam.current?.click()} disabled={busy} className="rounded-xl bg-white px-4 py-2.5 text-sm font-black text-stone-950 shadow active:scale-95 disabled:opacity-50">📷 Camera</button>
-          <button type="button" onClick={() => files.current?.click()} disabled={busy} className="rounded-xl bg-white/10 px-4 py-2.5 text-sm font-bold hover:bg-white/15 disabled:opacity-50">🖼️ Screenshots chuno</button>
-          <span className="hidden self-center text-xs text-stone-500 md:inline">ya yahan drag karo · Ctrl+V se paste</span>
+          <button type="button" onClick={() => cam.current?.click()} disabled={busy} className="rounded-xl bg-white px-4 py-2.5 text-sm font-black text-night shadow active:scale-95 disabled:opacity-50">📷 Camera</button>
+          <button type="button" onClick={() => files.current?.click()} disabled={busy} className="rounded-xl bg-white/10 px-4 py-2.5 text-sm font-bold hover:bg-white/15 disabled:opacity-50">🖼️ Choose screenshots</button>
+          <span className="hidden self-center text-xs text-mist/70 md:inline">or drag them here · paste with Ctrl+V</span>
         </div>
         <input ref={cam} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFiles} />
         <input ref={files} type="file" accept="image/*" multiple className="hidden" onChange={onFiles} data-testid="scan-files" />
@@ -114,7 +114,7 @@ export function ScreenshotScanner({ api, ai, onResult, toast }: { api: Api; ai: 
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={s.url} alt={`Screenshot ${i + 1}`} className="h-full w-full object-cover object-top" />
                 {busy && <div className="scout-scanline absolute inset-x-0 h-6" />}
-                {!busy && <button type="button" onClick={() => setShots(x => x.filter(y => y.id !== s.id))} aria-label="Hatao" className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-[10px]">✕</button>}
+                {!busy && <button type="button" onClick={() => setShots(x => x.filter(y => y.id !== s.id))} aria-label="Remove" className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-[10px]">✕</button>}
               </div>
             ))}
           </div>
@@ -122,22 +122,22 @@ export function ScreenshotScanner({ api, ai, onResult, toast }: { api: Api; ai: 
       </div>
 
       {shots.length > 0 && (
-        <button type="button" disabled={busy || !ai} onClick={scan} className="mt-3 w-full rounded-xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 py-3 font-black text-white shadow-lg shadow-fuchsia-500/25 transition active:scale-[.98] disabled:opacity-50">
-          {busy ? <span key={step} className="scout-pop inline-block">🔍 {STEPS[step]}</span> : `✨ ${shots.length} screenshot${shots.length > 1 ? "s" : ""} scan karo`}
+        <button type="button" disabled={busy || !ai} onClick={scan} className="mt-3 w-full rounded-xl bg-gradient-to-r from-pool-deep to-pool py-3 font-black text-night shadow-lg shadow-pool/25 transition active:scale-[.98] disabled:opacity-50">
+          {busy ? <span key={step} className="scout-pop inline-block">🔍 {STEPS[step]}</span> : `✨ Scan ${shots.length} screenshot${shots.length > 1 ? "s" : ""}`}
         </button>
       )}
 
       {result && !busy && (
         <div className="scout-pop mt-3 space-y-2 rounded-xl bg-white/5 p-3 text-sm">
-          {result.summary_roman_urdu && <p className="text-stone-100">🧠 {result.summary_roman_urdu}</p>}
+          {result.summary && <p className="text-bone">🧠 {result.summary}</p>}
           {(result.review_complaints?.length > 0 || result.review_praise?.length > 0) && (
             <div className="grid gap-2 sm:grid-cols-2">
-              {result.review_complaints?.length > 0 && <div><div className="text-xs font-bold text-red-300">👎 Guests ki shikayat</div><ul className="list-disc pl-4 text-xs text-stone-300">{result.review_complaints.map((x: string) => <li key={x}>{x}</li>)}</ul></div>}
-              {result.review_praise?.length > 0 && <div><div className="text-xs font-bold text-emerald-300">👍 Guests ko pasand</div><ul className="list-disc pl-4 text-xs text-stone-300">{result.review_praise.map((x: string) => <li key={x}>{x}</li>)}</ul></div>}
+              {result.review_complaints?.length > 0 && <div><div className="text-xs font-bold text-red-300">👎 Guest complaints</div><ul className="list-disc pl-4 text-xs text-bone/80">{result.review_complaints.map((x: string) => <li key={x}>{x}</li>)}</ul></div>}
+              {result.review_praise?.length > 0 && <div><div className="text-xs font-bold text-emerald-300">👍 Guests like</div><ul className="list-disc pl-4 text-xs text-bone/80">{result.review_praise.map((x: string) => <li key={x}>{x}</li>)}</ul></div>}
             </div>
           )}
-          {result.not_visible?.length > 0 && <p className="text-xs text-amber-300">✍️ Ye screenshots mein nahi mila, haath se bharo: {result.not_visible.join(", ")}</p>}
-          <button type="button" onClick={() => { setShots([]); setResult(null); }} className="text-xs text-fuchsia-300 hover:underline">↺ Nayi listing ke screenshots</button>
+          {result.not_visible?.length > 0 && <p className="text-xs text-door-hi">✍️ Not in the screenshots, fill these by hand: {result.not_visible.join(", ")}</p>}
+          <button type="button" onClick={() => { setShots([]); setResult(null); }} className="text-xs text-pool hover:underline">↺ Screenshots for a new listing</button>
         </div>
       )}
     </div>
@@ -154,15 +154,15 @@ export function contactLinks({ host, title, market, area, licence }: { host?: st
   const links: { label: string; hint: string; url: string }[] = [];
   if (name) {
     links.push({ label: "Google: host + city", hint: "website, holiday-let page, reviews", url: `https://www.google.com/search?q=${q(`"${name}" ${city} (airbnb OR "holiday let" OR "short let" OR "apartments")`)}` });
-    links.push({ label: "Facebook", hint: "host ka profile ya page", url: `https://www.facebook.com/search/top?q=${q(`${name} ${city}`)}` });
-    links.push({ label: "Instagram", hint: "Google se Instagram profile", url: `https://www.google.com/search?q=${q(`site:instagram.com "${name}" ${city}`)}` });
+    links.push({ label: "Facebook", hint: "the host's profile or page", url: `https://www.facebook.com/search/top?q=${q(`${name} ${city}`)}` });
+    links.push({ label: "Instagram", hint: "Instagram profile via Google", url: `https://www.google.com/search?q=${q(`site:instagram.com "${name}" ${city}`)}` });
     links.push({ label: "LinkedIn", hint: "property investors / landlords", url: `https://www.linkedin.com/search/results/all/?keywords=${q(`${name} ${city} property`)}` });
   }
-  if (title?.trim()) links.push({ label: "Title Google pe", hint: "wohi property doosri sites pe (website, Booking)", url: `https://www.google.com/search?q=${q(`"${title.trim().slice(0, 80)}"`)}` });
-  if (m?.country === "UK" && name) links.push({ label: "Companies House", hint: "UK company ho to director ka naam", url: `https://find-and-update.company-information.service.gov.uk/search?q=${q(name)}` });
-  if (licence?.trim()) links.push({ label: "Licence number Google pe", hint: "owner / company ka naam mil sakta hai", url: `https://www.google.com/search?q=${q(`"${licence.trim()}"`)}` });
-  if (city) links.push({ label: "Facebook groups", hint: "city ke hosts ke groups join karo", url: `https://www.facebook.com/search/groups?q=${q(`${city} airbnb hosts`)}` });
-  links.push({ label: "Google Lens", hint: "cover photo upload karo, website mil jati hai", url: "https://lens.google.com/" });
+  if (title?.trim()) links.push({ label: "Title on Google", hint: "same property on other sites (website, Booking)", url: `https://www.google.com/search?q=${q(`"${title.trim().slice(0, 80)}"`)}` });
+  if (m?.country === "UK" && name) links.push({ label: "Companies House", hint: "director name if it's a UK company", url: `https://find-and-update.company-information.service.gov.uk/search?q=${q(name)}` });
+  if (licence?.trim()) links.push({ label: "Licence on Google", hint: "can reveal the owner / company name", url: `https://www.google.com/search?q=${q(`"${licence.trim()}"`)}` });
+  if (city) links.push({ label: "Facebook groups", hint: "join the city's host groups", url: `https://www.facebook.com/search/groups?q=${q(`${city} airbnb hosts`)}` });
+  links.push({ label: "Google Lens", hint: "upload the cover photo to find their website", url: "https://lens.google.com/" });
   return links;
 }
 
@@ -170,10 +170,10 @@ export function ContactFinder(props: { host?: string; title?: string; market?: s
   const links = contactLinks(props);
   return (
     <div className="rounded-xl border border-white/10 bg-white/[.03] p-3">
-      <div className="mb-2 text-xs font-bold text-stone-300">🔎 Contact dhundo <span className="font-normal text-stone-500">· Airbnb inbox mein pitch nahi, yahan se host tak pohncho</span></div>
-      {!props.host && <p className="mb-2 text-xs text-stone-500">Host ka naam likho, zyada buttons aa jayenge.</p>}
+      <div className="mb-2 text-xs font-bold text-bone/80">🔎 Find contact <span className="font-normal text-mist/70">· never pitch in the Airbnb inbox, reach the host here</span></div>
+      {!props.host && <p className="mb-2 text-xs text-mist/70">Enter the host name to get more search buttons.</p>}
       <div className="flex flex-wrap gap-1.5">
-        {links.map(l => <a key={l.label} href={l.url} target="_blank" rel="noreferrer" title={l.hint} className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-stone-200 transition hover:bg-orange-500/30 hover:text-white">{l.label} ↗</a>)}
+        {links.map(l => <a key={l.label} href={l.url} target="_blank" rel="noreferrer" title={l.hint} className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-bone transition hover:bg-door/25 hover:text-door-hi">{l.label} ↗</a>)}
       </div>
     </div>
   );

@@ -29,7 +29,7 @@ export async function POST(req: Request) {
       schema: SCHEMA,
       maxTokens: 1500,
     });
-    if (!r) throw new HttpError(503, "AI abhi connect nahi. Template wala draft use karo.");
+    if (!r) throw new HttpError(503, "AI isn't connected yet. Use the template draft.");
     return Response.json(r.data);
   } catch (e) {
     return errorResponse(e);
