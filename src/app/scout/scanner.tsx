@@ -254,6 +254,7 @@ export function ScreenshotScanner({ api, ai, onResult, toast }: { api: Api; ai: 
       {result && !busy && (
         <div className="scout-pop mt-3 space-y-2 rounded-xl bg-white/5 p-3 text-sm">
           {result.summary && <p className="text-bone">🧠 {result.summary}</p>}
+          {result.host_insights?.length > 0 && <div><div className="text-xs font-bold text-door">👤 About the host</div><ul className="list-disc pl-4 text-xs text-bone/80">{result.host_insights.map((x: string) => <li key={x}>{x}</li>)}</ul></div>}
           {(result.review_complaints?.length > 0 || result.review_praise?.length > 0) && (
             <div className="grid gap-2 sm:grid-cols-2">
               {result.review_complaints?.length > 0 && <div><div className="text-xs font-bold text-red-300">👎 Guest complaints</div><ul className="list-disc pl-4 text-xs text-bone/80">{result.review_complaints.map((x: string) => <li key={x}>{x}</li>)}</ul></div>}

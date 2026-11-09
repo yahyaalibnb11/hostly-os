@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { autoProblems, buildPitch, linkKey, scoreListing, solutionsText } from "@/lib/scout/catalog";
 import { hashPin, pinMatches } from "@/lib/scout/server";
-import { SCAN_SCHEMA } from "@/lib/scan/listing";
+import { marketFromPlace, pricesFromQuotes, SCAN_SCHEMA } from "@/lib/scan/listing";
 import { contactLinks, pickFrames } from "@/app/scout/scanner";
 
 test.describe("scout", () => {
@@ -66,5 +66,20 @@ test.describe("scout", () => {
     expect(pickFrames(frames, 20).map(x => x.v)).toEqual([10, 100, 200, 30]);
     const many = Array.from({ length: 40 }, (_, i) => f((i * 37) % 256));
     expect(pickFrames(many, 20)).toHaveLength(20);
+  });
+
+  test("weekday and weekend prices come from the real calendar dates", () => {
+    // 12 Nov 2026 is a Thursday, 13 a Friday, 14 a Saturday.
+    expect(pricesFromQuotes([{ check_in: "2026-11-10", check_out: "2026-11-11", nights: 1, total: 70 }, { check_in: "2026-11-13", check_out: "2026-11-15", nights: 2, total: 190 }]))
+      .toEqual({ weekday: 70, weekend: 95, mixed: null });
+    expect(pricesFromQuotes([{ check_in: "2026-11-12", check_out: "2026-11-14", nights: 2, total: 146 }])).toEqual({ weekday: null, weekend: null, mixed: 73 });
+    expect(pricesFromQuotes([{ check_in: "", check_out: "", nights: 2, total: 146 }]).mixed).toBe(73);
+  });
+
+  test("the market is found from the city when the AI leaves it empty", () => {
+    expect(marketFromPlace("Room in Manchester, United Kingdom")).toBe("uk-manchester");
+    expect(marketFromPlace("Marbella, Andalusia")).toBe("es-costa-del-sol");
+    expect(marketFromPlace("Mayrhofen, Zillertal")).toBe("at-tyrol");
+    expect(marketFromPlace("Somewhere else")).toBe("");
   });
 });

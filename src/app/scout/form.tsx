@@ -97,6 +97,7 @@ export function ListingForm({ api, me, members, editing, ai, onSaved, onCancel, 
       const extra = (r.other_problems ?? []).filter((x: string) => x && !String(p.custom_problems).includes(x));
       if (extra.length) n.custom_problems = [String(p.custom_problems).trim(), ...extra].filter(Boolean).join("\n");
       const notes = [
+        r.host_insights?.length ? `Host: ${r.host_insights.join("; ")}` : "",
         r.review_complaints?.length ? `Guest complaints: ${r.review_complaints.join("; ")}` : "",
         r.review_praise?.length ? `Guests like: ${r.review_praise.join("; ")}` : "",
         r.photo_quality ? `Photos: ${r.photo_quality}` : "",
