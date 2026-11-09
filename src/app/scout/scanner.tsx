@@ -91,7 +91,7 @@ export function ScreenshotScanner({ api, ai, onResult, toast }: { api: Api; ai: 
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-pool-deep to-pool text-xl shadow-lg shadow-pool/30">📸</div>
         <div>
           <h3 className="font-extrabold">Auto-fill from screenshots <span className="ml-1 rounded-full bg-pool/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-pool-hi">AI</span></h3>
-          <p className="text-xs text-mist">Take 3-6 screenshots of the listing: the top (title, rating), the host profile, price/calendar and reviews. AI fills in the rest.</p>
+          <p className="text-xs text-mist">Add up to 8 screenshots: top of the listing, all photos, weekday and weekend price, description, amenities, reviews, host profile. AI fills in the rest.</p>
         </div>
       </div>
 
