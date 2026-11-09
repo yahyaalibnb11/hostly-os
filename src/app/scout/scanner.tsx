@@ -186,6 +186,7 @@ export function ScreenshotScanner({ api, ai, onResult, toast }: { api: Api; ai: 
       }
       const r = await api("/api/scout/scan", { body: { images: list.map(s => ({ type: s.type, data: s.data })) } });
       setResult(r.result); onResult(r.result);
+      setShots([]); // ready for the next listing
       toast("✨ Form filled! Give it a quick check");
     } catch (e) { toast((e as Error).message, "err"); } finally { setBusy(false); }
   };

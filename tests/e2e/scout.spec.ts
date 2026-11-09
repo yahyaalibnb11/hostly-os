@@ -111,6 +111,9 @@ test("screenshots fill the form with AI", async ({ page }) => {
   await expect(page.getByPlaceholder("Sea view 2BR with pool, 5 min to beach")).toHaveValue("Bright 2BR by the Etihad");
   await expect(page.getByRole("button", { name: /✓ Weak cover photo/ })).toBeVisible();
   await expect(page.getByRole("link", { name: /Companies House/ })).toBeVisible();
+  await expect(page.getByAltText("Screenshot 1")).toHaveCount(0); // scanner empties after the scan
+  await page.getByRole("button", { name: /Save listing/ }).click();
+  await expect(page.getByText("Photos are dark")).toHaveCount(0); // and resets fully after saving
   if (process.env.SCOUT_SHOTS) await page.screenshot({ path: `${process.env.SCOUT_SHOTS}/scan.png`, fullPage: true });
 });
 

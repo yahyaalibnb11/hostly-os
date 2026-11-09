@@ -83,6 +83,7 @@ export function ListingForm({ api, me, members, editing, ai, onSaved, onCancel, 
   }, [s.ids.join(), f.custom_problems, f.host_name, f.title, f.market, offer, pitchTouched]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [area, setArea] = useState("");
+  const [scanKey, setScanKey] = useState(0); // a new key empties the scanner after each save
 
   // Put what the AI read from the screenshots into the form. The student checks it before saving.
   const applyScan = (r: ScanResult) => {
@@ -124,7 +125,7 @@ export function ListingForm({ api, me, members, editing, ai, onSaved, onCancel, 
       delete body.link_key; delete body.added_by; delete body.created_at; delete body.updated_at; delete body.score; delete body.grade; delete body.problem_count;
       const r = await api("/api/scout/listings", { body });
       onSaved(r.listing, !editing);
-      if (!editing) { setF({ ...BLANK, market: f.market }); setPicked([]); setSolTouched(false); setPitchTouched(false); }
+      if (!editing) { setF({ ...BLANK, market: f.market }); setPicked([]); setSolTouched(false); setPitchTouched(false); setArea(""); setScanKey(k => k + 1); }
     } catch (e) { toast((e as Error).message, "err"); } finally { setBusy(""); }
   };
 
@@ -150,7 +151,7 @@ export function ListingForm({ api, me, members, editing, ai, onSaved, onCancel, 
       <div className="space-y-4">
         {editing && <p className="scout-rise text-sm text-mist">Edit: <b className="text-bone">{editing.title || editing.link}</b> · added by {owner}{ro && " · you can only change status, pitch, contact and notes"}</p>}
 
-        {!ro && !editing && <ScreenshotScanner api={api} ai={ai} onResult={applyScan} toast={toast} />}
+        {!ro && !editing && <ScreenshotScanner key={scanKey} api={api} ai={ai} onResult={applyScan} toast={toast} />}
 
         <Step n={1} title="Listing link and market" sub="The link tells us if someone already added this listing" delay={0}>
           <div key={shake} className={`grid gap-3 sm:grid-cols-2 ${shake ? "scout-shake" : ""}`}>
