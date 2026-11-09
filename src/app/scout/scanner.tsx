@@ -322,12 +322,14 @@ export function ContactFinder(props: FinderProps & { api?: Api; ai?: boolean; to
   const clues = props.clues ?? [];
   const canSearch = Boolean(props.host?.trim() || props.title?.trim() || props.licence?.trim() || desc.trim() || clues.length || props.business?.trim());
 
-  const search = async () => {
+  const [mode, setMode] = useState<"quick" | "deep">("quick");
+  const search = async (m: "quick" | "deep" = "quick") => {
     if (!props.api) return;
+    setMode(m);
     setBusy(true); setErr(""); setRes(null);
     try {
-      const m = marketById(props.market || "");
-      const r = await props.api("/api/scout/contact", { body: { host: props.host, title: props.title, city: props.area || m?.name, country: m?.country, licence: props.licence, listings: props.listings, managed_by: props.managedBy, insights: props.insights, link: props.link, description: desc, clues, business: props.business, other_listings: props.otherListings } });
+      const mk = marketById(props.market || "");
+      const r = await props.api("/api/scout/contact", { body: { host: props.host, title: props.title, city: props.area || mk?.name, country: mk?.country, licence: props.licence, listings: props.listings, managed_by: props.managedBy, insights: props.insights, link: props.link, description: desc, clues, business: props.business, other_listings: props.otherListings, mode: m } });
       setRes(r.result);
     } catch (e: any) { setErr(e?.message || "Search failed. Try again."); }
     finally { setBusy(false); }
@@ -347,10 +349,16 @@ export function ContactFinder(props: FinderProps & { api?: Api; ai?: boolean; to
       <div className="mb-2 text-xs font-bold text-bone/80">🔎 Find contact <span className="font-normal text-mist/70">· never pitch in the Airbnb inbox, reach the host here</span></div>
       {props.api && (
         <div className="mb-3">
-          <button type="button" data-testid="ai-contact" onClick={search} disabled={busy || !canSearch || props.ai === false}
-            className="rounded-lg bg-pool px-3 py-2 text-xs font-bold text-night transition hover:bg-pool-hi disabled:cursor-not-allowed disabled:opacity-50">
-            {busy ? "🤖 Deep search: reading the listing and checking every platform… (1-4 min)" : "🤖 Find contact with AI"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" data-testid="ai-contact" onClick={() => search("quick")} disabled={busy || !canSearch || props.ai === false}
+              className="rounded-lg bg-pool px-3 py-2 text-xs font-bold text-night transition hover:bg-pool-hi disabled:cursor-not-allowed disabled:opacity-50">
+              {busy && mode === "quick" ? "🤖 Searching… (20-60 sec)" : "🤖 Find contact with AI · quick (~5¢)"}
+            </button>
+            <button type="button" data-testid="ai-contact-deep" onClick={() => search("deep")} disabled={busy || !canSearch || props.ai === false}
+              className="rounded-lg border border-pool/60 px-3 py-2 text-xs font-bold text-pool-hi transition hover:bg-pool/15 disabled:cursor-not-allowed disabled:opacity-50">
+              {busy && mode === "deep" ? "🔎 Deep search: checking every platform… (1-4 min)" : "🔎 Deep search (~30¢)"}
+            </button>
+          </div>
           <span className="ml-2 text-xs text-mist/70">{props.ai === false ? "AI isn't connected yet" : canSearch ? "searches Google for website, Facebook, Instagram, LinkedIn, company" : "scan the listing or enter the host name first"}</span>
           {props.findable && <div className="mt-2"><FindBadge f={props.findable} /></div>}
           {props.business && <p className="mt-2 text-xs text-mist"><b className="text-bone/80">🏢 Business details:</b> {props.business}</p>}
@@ -401,6 +409,8 @@ export function ContactFinder(props: FinderProps & { api?: Api; ai?: boolean; to
               {res.best_channel && <p className="text-xs"><b className="text-door-hi">⭐ Best way to reach:</b> <span className="text-bone">{res.best_channel}</span></p>}
               {res.approach_points.length > 0 && <div><p className="text-xs font-bold text-bone/80">💬 How to approach</p><ul className="ml-4 list-disc text-xs text-mist">{res.approach_points.map(x => <li key={x}>{x}</li>)}</ul></div>}
               {res.next_steps.length > 0 && <div><p className="text-xs font-bold text-bone/80">👣 Next steps</p><ol className="ml-4 list-decimal text-xs text-mist">{res.next_steps.map(x => <li key={x}>{x}</li>)}</ol></div>}
+              {res.found.some(f => ["instagram", "facebook"].includes(f.kind)) && <p className="text-xs text-mist">📸 Tip: open the Instagram / Facebook profile and compare its photo with the Airbnb host photo before you message.</p>}
+              {res.found.length === 0 && mode === "quick" && <p className="text-xs text-pool-hi">Nothing yet? Try 🔎 Deep search for this host if the badge is 🟢 or 🟡.</p>}
               {props.onUse && <button type="button" onClick={use} className="rounded-lg bg-door px-3 py-1.5 text-xs font-bold text-night hover:bg-door-hi">➕ Add to Contact and Notes</button>}
             </div>
           )}

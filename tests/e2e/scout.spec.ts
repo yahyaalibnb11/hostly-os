@@ -120,6 +120,7 @@ test("screenshots fill the form with AI", async ({ page }) => {
     expect(b.clues).toContain("Brand: Priya Stays");
     expect(b.business).toContain("01234567");
     expect(b.other_listings).toEqual(["Loft · Salford"]);
+    expect(b.mode).toBe("quick");
     await r.fulfill({ json: { result: {
       platforms: [{ platform: "airbnb", status: "listed", url: "" }, { platform: "booking", status: "not_found", url: "" }], channel_opportunity: "Only on Airbnb: missing Booking.com guests.",
       key_points: ["Brand name Priya Stays in the description"], tried: [{ method: "Brand name + city", result: "found", detail: "priyastays.co.uk" }, { method: "Licence number", result: "nothing", detail: "No licence shown" }],
