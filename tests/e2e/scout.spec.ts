@@ -93,7 +93,7 @@ test("screenshots fill the form with AI", async ({ page }) => {
     await r.fulfill({ json: { result: {
       platform: "airbnb", listing_id: "55443322", title: "Bright 2BR by the Etihad", host_name: "Priya", host_listings: 2, property_type: "2 BHK", city_or_area: "Manchester",
       market: "uk-manchester", rating: 4.61, reviews: 23, currency: "GBP", weekday_price: 89, weekend_price: 89, min_nights: 3, photos: 14, response_rate: 80,
-      managed_by: "self", licence_number: "", problems: ["weak_cover", "boring_title"], other_problems: ["No parking info"], review_praise: ["Clean"], review_complaints: ["Noisy street"],
+      managed_by: "self", licence_number: "", description_text: "Run by Priya Stays. Book direct on our site.", contact_clues: ["Brand: Priya Stays", "Mentions own booking site"], problems: ["weak_cover", "boring_title"], other_problems: ["No parking info"], review_praise: ["Clean"], review_complaints: ["Noisy street"],
       photo_quality: "Dark living room photos", summary: "Photos are dark and pricing is flat.", not_visible: ["licence"],
     } } });
   });
@@ -116,14 +116,19 @@ test("screenshots fill the form with AI", async ({ page }) => {
     const b = r.request().postDataJSON();
     expect(b.host).toBe("Priya");
     expect(b.city).toBe("Manchester");
+    expect(b.description).toContain("Priya Stays");
+    expect(b.clues).toContain("Brand: Priya Stays");
     await r.fulfill({ json: { result: {
+      key_points: ["Brand name Priya Stays in the description"], tried: [{ method: "Brand name + city", result: "found", detail: "priyastays.co.uk" }, { method: "Licence number", result: "nothing", detail: "No licence shown" }],
       found: [{ kind: "website", value: "https://priyastays.co.uk", confidence: "high", why: "Same photos and title" }, { kind: "instagram", value: "https://instagram.com/priyastays", confidence: "medium", why: "Linked from the website" }],
       owner_name: "Priya Stays Ltd", best_channel: "Email from the website contact page", approach_points: ["Mention her dark living room photos"], next_steps: ["Check Companies House for the director"], summary: "Found her own website.",
     } } });
   });
+  await expect(page.getByText("Clues from the scan:")).toBeVisible();
   await page.getByTestId("ai-contact").click();
   await expect(page.getByTestId("ai-contact-result").getByText("Found her own website.")).toBeVisible();
   await expect(page.getByRole("link", { name: "https://priyastays.co.uk" })).toBeVisible();
+  await expect(page.getByText("What the AI tried (2 methods)")).toBeVisible();
   await page.getByRole("button", { name: /Add to Contact and Notes/ }).click();
   await expect(page.getByPlaceholder("facebook.com/… or email")).toHaveValue("https://priyastays.co.uk , https://instagram.com/priyastays");
   await page.getByRole("button", { name: /Save listing/ }).click();

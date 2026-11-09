@@ -98,5 +98,8 @@ test.describe("scout", () => {
     expect(f.map(x => x.value)).toEqual(["https://priyastays.co.uk", "hello@priyastays.co.uk", "+44 161 555 0100"]);
     const brief = contactBrief({ host: "Priya", city: "Manchester", title: "", insights: ["Lives in Leeds", ""] });
     expect(brief).toBe("Host name: Priya\nCity / area: Manchester\nAbout the host: Lives in Leeds");
+    expect(contactBrief({ title: "Loft", clues: ["Brand: Casa Sol"], description: "Book  direct\n at casasol.es" })).toBe("Listing title: Loft\nClues seen on the listing: Brand: Casa Sol\nListing description: Book direct at casasol.es");
+    expect(CONTACT_SCHEMA.required).toEqual(expect.arrayContaining(["key_points", "tried"]));
+    expect(SCAN_SCHEMA.required).toEqual(expect.arrayContaining(["description_text", "contact_clues"]));
   });
 });

@@ -292,26 +292,30 @@ export function contactLinks({ host, title, market, area, licence }: { host?: st
   return links;
 }
 
-type Contact = { found: { kind: string; value: string; confidence: string; why: string }[]; owner_name: string; best_channel: string; approach_points: string[]; next_steps: string[]; summary: string };
+type Contact = { found: { kind: string; value: string; confidence: string; why: string }[]; key_points: string[]; tried: { method: string; result: string; detail: string }[]; owner_name: string; best_channel: string; approach_points: string[]; next_steps: string[]; summary: string };
 const KIND_ICON: Record<string, string> = { website: "🌐", facebook: "📘", instagram: "📸", linkedin: "💼", company: "🏢", email: "✉️", phone: "📞", other_listing: "🏠", other: "🔗" };
 const CONF: Record<string, string> = { high: "bg-pool/20 text-pool-hi", medium: "bg-door/20 text-door-hi", low: "bg-white/10 text-mist" };
 const hrefOf = (v: string) => v.includes("@") && !v.startsWith("http") ? `mailto:${v}` : /^\+?[\d ()-]{7,}$/.test(v) ? `tel:${v.replace(/[^\d+]/g, "")}` : v;
 
-type FinderProps = { host?: string; title?: string; market?: string; area?: string; licence?: string; listings?: string | number; managedBy?: string; insights?: string[]; link?: string };
+type FinderProps = { host?: string; title?: string; market?: string; area?: string; licence?: string; listings?: string | number; managedBy?: string; insights?: string[]; link?: string; description?: string; clues?: string[] };
 
 export function ContactFinder(props: FinderProps & { api?: Api; ai?: boolean; toast?: (m: string, k?: "ok" | "err") => void; onUse?: (contact: string, notes: string) => void }) {
   const links = contactLinks(props);
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState<Contact | null>(null);
   const [err, setErr] = useState("");
-  const canSearch = Boolean(props.host?.trim() || props.title?.trim() || props.licence?.trim());
+  const [desc, setDesc] = useState(props.description ?? "");
+  const [showDesc, setShowDesc] = useState(false);
+  useEffect(() => { if (props.description) setDesc(props.description); }, [props.description]);
+  const clues = props.clues ?? [];
+  const canSearch = Boolean(props.host?.trim() || props.title?.trim() || props.licence?.trim() || desc.trim() || clues.length);
 
   const search = async () => {
     if (!props.api) return;
     setBusy(true); setErr(""); setRes(null);
     try {
       const m = marketById(props.market || "");
-      const r = await props.api("/api/scout/contact", { body: { host: props.host, title: props.title, city: props.area || m?.name, country: m?.country, licence: props.licence, listings: props.listings, managed_by: props.managedBy, insights: props.insights, link: props.link } });
+      const r = await props.api("/api/scout/contact", { body: { host: props.host, title: props.title, city: props.area || m?.name, country: m?.country, licence: props.licence, listings: props.listings, managed_by: props.managedBy, insights: props.insights, link: props.link, description: desc, clues } });
       setRes(r.result);
     } catch (e: any) { setErr(e?.message || "Search failed. Try again."); }
     finally { setBusy(false); }
@@ -321,7 +325,7 @@ export function ContactFinder(props: FinderProps & { api?: Api; ai?: boolean; to
     if (!res || !props.onUse) return;
     const top = [...res.found].sort((a, b) => ["high", "medium", "low"].indexOf(a.confidence) - ["high", "medium", "low"].indexOf(b.confidence));
     const contact = top.filter(f => f.confidence !== "low").slice(0, 3).map(f => f.value).join(" , ");
-    const notes = [res.owner_name && `Owner: ${res.owner_name}`, res.best_channel && `Best way: ${res.best_channel}`, res.approach_points.length ? `Approach: ${res.approach_points.join("; ")}` : ""].filter(Boolean).join(" | ");
+    const notes = [res.owner_name && `Owner: ${res.owner_name}`, res.best_channel && `Best way: ${res.best_channel}`, res.key_points.length ? `Key points: ${res.key_points.join("; ")}` : "", res.approach_points.length ? `Approach: ${res.approach_points.join("; ")}` : ""].filter(Boolean).join(" | ");
     props.onUse(contact, notes);
     props.toast?.("✅ Contact and approach points added");
   };
@@ -333,15 +337,22 @@ export function ContactFinder(props: FinderProps & { api?: Api; ai?: boolean; to
         <div className="mb-3">
           <button type="button" data-testid="ai-contact" onClick={search} disabled={busy || !canSearch || props.ai === false}
             className="rounded-lg bg-pool px-3 py-2 text-xs font-bold text-night transition hover:bg-pool-hi disabled:cursor-not-allowed disabled:opacity-50">
-            {busy ? "🤖 Searching the internet… (20-60 sec)" : "🤖 Find contact with AI"}
+            {busy ? "🤖 Reading the listing and trying every method… (30-90 sec)" : "🤖 Find contact with AI"}
           </button>
           <span className="ml-2 text-xs text-mist/70">{props.ai === false ? "AI isn't connected yet" : canSearch ? "searches Google for website, Facebook, Instagram, LinkedIn, company" : "scan the listing or enter the host name first"}</span>
+          {clues.length > 0 && <p className="mt-2 text-xs text-mist"><b className="text-bone/80">🧩 Clues from the scan:</b> {clues.join(" · ")}</p>}
+          <button type="button" onClick={() => setShowDesc(v => !v)} className="mt-2 block text-xs text-pool hover:underline">
+            {showDesc ? "▾ Hide description" : desc ? "▸ Description read by AI (check or add more)" : "▸ Paste the listing description for better results"}
+          </button>
+          {showDesc && <textarea data-testid="ai-contact-desc" value={desc} onChange={e => setDesc(e.target.value)} rows={5} maxLength={6000} placeholder="Copy the full description, house rules and host bio from the listing and paste here"
+            className="mt-1 w-full rounded-lg border border-white/10 bg-night/60 p-2 text-xs text-bone outline-none focus:border-pool" />}
           {busy && <div className="mt-2 h-1 overflow-hidden rounded bg-white/10"><div className="scout-scanline h-full w-1/3 bg-pool" /></div>}
           {err && <p className="mt-2 text-xs text-red-300">{err}</p>}
           {res && (
             <div data-testid="ai-contact-result" className="mt-3 space-y-3 rounded-lg border border-pool/30 bg-pool/[.06] p-3 text-sm">
               {res.summary && <p className="text-bone">{res.summary}</p>}
               {res.owner_name && <p className="text-xs text-mist">Owner / company: <b className="text-bone">{res.owner_name}</b></p>}
+              {res.key_points.length > 0 && <div><p className="text-xs font-bold text-bone/80">🧩 Key points from the listing</p><ul className="ml-4 list-disc text-xs text-mist">{res.key_points.map(x => <li key={x}>{x}</li>)}</ul></div>}
               {res.found.length > 0 ? (
                 <ul className="space-y-1.5">
                   {res.found.map(f => (
@@ -354,6 +365,12 @@ export function ContactFinder(props: FinderProps & { api?: Api; ai?: boolean; to
                   ))}
                 </ul>
               ) : <p className="text-xs text-door-hi">No public page found yet. Follow the next steps below.</p>}
+              {res.tried.length > 0 && (
+                <details className="text-xs">
+                  <summary className="cursor-pointer font-bold text-bone/80">🔍 What the AI tried ({res.tried.length} methods)</summary>
+                  <ul className="mt-1 space-y-1">{res.tried.map((t, i) => <li key={i} className="text-mist"><span>{t.result === "found" ? "✅" : t.result === "partial" ? "🟡" : "❌"}</span> <b className="text-bone/90">{t.method}</b>: {t.detail}</li>)}</ul>
+                </details>
+              )}
               {res.best_channel && <p className="text-xs"><b className="text-door-hi">⭐ Best way to reach:</b> <span className="text-bone">{res.best_channel}</span></p>}
               {res.approach_points.length > 0 && <div><p className="text-xs font-bold text-bone/80">💬 How to approach</p><ul className="ml-4 list-disc text-xs text-mist">{res.approach_points.map(x => <li key={x}>{x}</li>)}</ul></div>}
               {res.next_steps.length > 0 && <div><p className="text-xs font-bold text-bone/80">👣 Next steps</p><ol className="ml-4 list-decimal text-xs text-mist">{res.next_steps.map(x => <li key={x}>{x}</li>)}</ol></div>}
