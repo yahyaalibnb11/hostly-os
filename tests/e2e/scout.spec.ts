@@ -104,7 +104,7 @@ test("screenshots fill the form with AI", async ({ page }) => {
   await page.getByRole("button", { name: /Add a new listing/ }).click();
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
   await page.getByTestId("scan-files").setInputFiles([{ name: "a.png", mimeType: "image/png", buffer: png }, { name: "b.png", mimeType: "image/png", buffer: png }]);
-  await page.getByRole("button", { name: /Scan 2 screenshots/ }).click();
+  await page.getByRole("button", { name: /Scan 2 images/ }).click();
   await expect(page.getByText("Photos are dark")).toBeVisible();
   await expect(page.getByPlaceholder("https://www.airbnb.com/rooms/12345678")).toHaveValue("https://www.airbnb.com/rooms/55443322");
   await expect(page.getByPlaceholder("Sarah")).toHaveValue("Priya");
@@ -112,5 +112,25 @@ test("screenshots fill the form with AI", async ({ page }) => {
   await expect(page.getByRole("button", { name: /✓ Weak cover photo/ })).toBeVisible();
   await expect(page.getByRole("link", { name: /Companies House/ })).toBeVisible();
   if (process.env.SCOUT_SHOTS) await page.screenshot({ path: `${process.env.SCOUT_SHOTS}/scan.png`, fullPage: true });
+});
+
+test("a short recording becomes a few distinct frames for the scan", async ({ page }) => {
+  let sent = 0;
+  await page.route("**/api/scout/scan", async r => {
+    sent = r.request().postDataJSON().images.length;
+    await r.fulfill({ json: { result: { title: "Video listing", host_name: "Alain", problems: [], other_problems: [], review_praise: [], review_complaints: [], not_visible: [], summary: "Read from the video." } } });
+  });
+  await open(page);
+  await page.unroute("**/api/scout/data");
+  await page.route("**/api/scout/data", r => r.fulfill({ json: { me: ME, members: MEMBERS, listings: LISTINGS, ai: true } }));
+  await page.reload();
+  await page.getByRole("button", { name: /Add a new listing/ }).click();
+  await page.getByTestId("scan-video").setInputFiles("tests/fixtures/scroll.webm");
+  await expect(page.getByText(/frames taken from the video/)).toBeVisible({ timeout: 20000 });
+  await page.getByRole("button", { name: /Scan \d+ images/ }).click();
+  await expect(page.getByText("Read from the video.")).toBeVisible();
+  expect(sent).toBeGreaterThanOrEqual(3);
+  expect(sent).toBeLessThanOrEqual(5);
+  await expect(page.getByPlaceholder("Sarah")).toHaveValue("Alain");
 });
 

@@ -11,14 +11,16 @@ import type { Api } from "./ui";
 export type ScanResult = Record<string, any>;
 type Shot = { id: string; url: string; type: string; data: string; bytes: number };
 
-const MAX_SHOTS = 8;
+const MAX_SHOTS = 20; // 8 screenshots, or up to 20 frames from a video
 const MAX_EDGE = 1600;
+const MAX_VIDEO_SECONDS = 60;
+const FRAME_EDGE = 1400;
 const BUDGET = 3_800_000; // the server takes ~4.5 MB per request, keep room for JSON
 
 // Shrink a photo in the browser so uploads stay small and fast on mobile data.
-async function shrink(file: Blob, quality = 0.82): Promise<Omit<Shot, "id">> {
+async function shrink(file: Blob, quality = 0.82, edge = MAX_EDGE): Promise<Omit<Shot, "id">> {
   const bmp = await createImageBitmap(file);
-  const k = Math.min(1, MAX_EDGE / Math.max(bmp.width, bmp.height));
+  const k = Math.min(1, edge / Math.max(bmp.width, bmp.height));
   const cv = document.createElement("canvas");
   cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
   cv.getContext("2d")!.drawImage(bmp, 0, 0, cv.width, cv.height);
@@ -26,6 +28,55 @@ async function shrink(file: Blob, quality = 0.82): Promise<Omit<Shot, "id">> {
   const url = cv.toDataURL("image/jpeg", quality);
   const data = url.slice(url.indexOf(",") + 1);
   return { url, type: "image/jpeg", data, bytes: Math.round(data.length * 0.75) };
+}
+
+// ---- Video: a recording of the whole listing becomes a handful of distinct frames ----
+// Claude reads images, not video, so we keep one frame whenever the screen has changed enough
+// (scrolled to a new part of the page), at most `room` of them.
+
+type Frame = { url: string; sig: Uint8Array };
+
+function grab(v: HTMLVideoElement, quality = 0.7): Frame {
+  const k = Math.min(1, FRAME_EDGE / Math.max(v.videoWidth, v.videoHeight));
+  const cv = document.createElement("canvas");
+  cv.width = Math.round(v.videoWidth * k); cv.height = Math.round(v.videoHeight * k);
+  cv.getContext("2d")!.drawImage(v, 0, 0, cv.width, cv.height);
+  const sm = document.createElement("canvas"); sm.width = 24; sm.height = 24;
+  const sctx = sm.getContext("2d", { willReadFrequently: true })!;
+  sctx.drawImage(cv, 0, 0, 24, 24);
+  const px = sctx.getImageData(0, 0, 24, 24).data, sig = new Uint8Array(576);
+  for (let i = 0; i < 576; i++) sig[i] = (px[i * 4] * 3 + px[i * 4 + 1] * 6 + px[i * 4 + 2]) / 10;
+  return { url: cv.toDataURL("image/jpeg", quality), sig };
+}
+const diff = (a: Uint8Array, b: Uint8Array) => { let d = 0; for (let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]); return d / a.length; };
+
+// Keep frames that differ from the last kept one, then thin them evenly down to `room`.
+export function pickFrames<T extends { sig: Uint8Array }>(frames: T[], room: number, threshold = 7): T[] {
+  const kept: T[] = [];
+  for (const f of frames) if (!kept.length || diff(kept[kept.length - 1].sig, f.sig) > threshold) kept.push(f);
+  if (kept.length <= room) return kept;
+  return Array.from({ length: room }, (_, i) => kept[Math.round((i * (kept.length - 1)) / Math.max(1, room - 1))]);
+}
+
+const toShot = (url: string): Omit<Shot, "id"> => { const data = url.slice(url.indexOf(",") + 1); return { url, type: "image/jpeg", data, bytes: Math.round(data.length * 0.75) }; };
+
+async function framesFromVideo(file: Blob, room: number, onProgress: (p: number) => void): Promise<{ shots: Omit<Shot, "id">[]; long: boolean }> {
+  const v = document.createElement("video");
+  v.muted = true; v.playsInline = true; v.preload = "auto";
+  const src = URL.createObjectURL(file);
+  v.src = src;
+  try {
+    await new Promise<void>((ok, bad) => { v.onloadeddata = () => ok(); v.onerror = () => bad(new Error("unreadable")); setTimeout(() => bad(new Error("unreadable")), 15000); });
+    const length = Number.isFinite(v.duration) ? v.duration : MAX_VIDEO_SECONDS;
+    const end = Math.min(length, MAX_VIDEO_SECONDS);
+    const frames: Frame[] = [];
+    for (let t = 0.2; t < end; t += 0.75) {
+      await new Promise<void>(ok => { v.onseeked = () => ok(); v.currentTime = t; setTimeout(ok, 2500); });
+      frames.push(grab(v));
+      onProgress(Math.min(1, t / end));
+    }
+    return { shots: pickFrames(frames, room).map(f => toShot(f.url)), long: length > MAX_VIDEO_SECONDS + 1 };
+  } finally { URL.revokeObjectURL(src); }
 }
 
 const STEPS = ["Reading the screenshots…", "Counting rating and reviews…", "Finding prices and nights…", "Checking photos and title…", "Looking for guest complaints…", "Building problems and score…"];
@@ -38,18 +89,75 @@ export function ScreenshotScanner({ api, ai, onResult, toast }: { api: Api; ai: 
   const [drag, setDrag] = useState(false);
   const cam = useRef<HTMLInputElement>(null);
   const files = useRef<HTMLInputElement>(null);
+  const vid = useRef<HTMLInputElement>(null);
+  const [reading, setReading] = useState<number | null>(null); // video frames being read, 0-1
+  const [rec, setRec] = useState<{ secs: number } | null>(null); // screen recording in progress
+  const recStop = useRef<(() => void) | null>(null);
+  const canRecord = typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getDisplayMedia);
+
+  const addFrames = useCallback((list: Omit<Shot, "id">[]) => {
+    setShots(s => [...s, ...list.map(d => ({ ...d, id: Math.random().toString(36).slice(2) }))]);
+  }, []);
+
+  const addVideo = useCallback(async (file: Blob) => {
+    const room = MAX_SHOTS - shots.length;
+    if (room <= 0) { toast(`${MAX_SHOTS} images at most. Remove some first.`, "err"); return; }
+    setReading(0);
+    try {
+      const { shots: got, long } = await framesFromVideo(file, room, setReading);
+      if (!got.length) throw new Error("empty");
+      addFrames(got);
+      toast(long ? `🎬 Only the first minute was used: ${got.length} frames` : `🎬 ${got.length} frames taken from the video`);
+    } catch {
+      toast("This video can't be read in this browser. Record it again (MP4 works best) or use screenshots.", "err");
+    } finally { setReading(null); }
+  }, [shots.length, toast, addFrames]);
+
+  // Laptop: record the Airbnb tab directly. We sample the shared screen once a second while the
+  // student scrolls, so nothing big is ever uploaded.
+  const recordScreen = async () => {
+    const room = MAX_SHOTS - shots.length;
+    if (room <= 0) { toast(`${MAX_SHOTS} images at most. Remove some first.`, "err"); return; }
+    let stream: MediaStream;
+    try { stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 5 }, audio: false }); }
+    catch { return; } // the student cancelled the picker
+    const v = document.createElement("video");
+    v.muted = true; v.playsInline = true; v.srcObject = stream;
+    await v.play().catch(() => undefined);
+    const frames: Frame[] = [];
+    const started = Date.now();
+    setRec({ secs: 0 });
+    const tick = setInterval(() => {
+      if (v.videoWidth) frames.push(grab(v));
+      const secs = Math.round((Date.now() - started) / 1000);
+      setRec({ secs });
+      if (secs >= MAX_VIDEO_SECONDS) stop();
+    }, 1000);
+    let done = false;
+    const stop = () => {
+      if (done) return; done = true;
+      clearInterval(tick); stream.getTracks().forEach(t => t.stop()); setRec(null); recStop.current = null;
+      const got = pickFrames(frames, room).map(f => toShot(f.url));
+      if (got.length) { addFrames(got); toast(`🎬 ${got.length} frames taken from the recording`); }
+      else toast("Nothing was recorded. Try again and scroll through the listing.", "err");
+    };
+    stream.getVideoTracks()[0]?.addEventListener("ended", stop); // "Stop sharing" in the browser bar
+    recStop.current = stop;
+  };
 
   const add = useCallback(async (list: Blob[]) => {
+    const video = list.find(f => f.type.startsWith("video/"));
+    if (video) { await addVideo(video); return; }
     const imgs = list.filter(f => f.type.startsWith("image/"));
     if (!imgs.length) return;
     const room = MAX_SHOTS - shots.length;
     if (room <= 0) { toast(`${MAX_SHOTS} screenshots at most`, "err"); return; }
     try {
-      const done = await Promise.all(imgs.slice(0, room).map(shrink));
+      const done = await Promise.all(imgs.slice(0, room).map(f => shrink(f)));
       setShots(s => [...s, ...done.map(d => ({ ...d, id: Math.random().toString(36).slice(2) }))]);
       if (imgs.length > room) toast(`Only the first ${MAX_SHOTS} screenshots were added`, "err");
     } catch { toast("That image couldn't be opened. Use a JPG or PNG screenshot.", "err"); }
-  }, [shots.length, toast]);
+  }, [shots.length, toast, addVideo]);
 
   // Ctrl+V / paste from the clipboard anywhere on the page.
   useEffect(() => {
@@ -74,7 +182,7 @@ export function ScreenshotScanner({ api, ai, onResult, toast }: { api: Api; ai: 
       let list = shots;
       if (list.reduce((a, s) => a + s.bytes, 0) > BUDGET) {
         // Too big for one request: squeeze harder before sending.
-        list = await Promise.all(list.map(async s => ({ ...s, ...(await shrink(await (await fetch(s.url)).blob(), 0.6)) })));
+        list = await Promise.all(list.map(async s => ({ ...s, ...(await shrink(await (await fetch(s.url)).blob(), 0.55, 1200)) })));
       }
       const r = await api("/api/scout/scan", { body: { images: list.map(s => ({ type: s.type, data: s.data })) } });
       setResult(r.result); onResult(r.result);
@@ -90,8 +198,8 @@ export function ScreenshotScanner({ api, ai, onResult, toast }: { api: Api; ai: 
       <div className="mb-3 flex items-start gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-pool-deep to-pool text-xl shadow-lg shadow-pool/30">📸</div>
         <div>
-          <h3 className="font-extrabold">Auto-fill from screenshots <span className="ml-1 rounded-full bg-pool/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-pool-hi">AI</span></h3>
-          <p className="text-xs text-mist">Add up to 8 screenshots: top of the listing, all photos, weekday and weekend price, description, amenities, reviews, host profile. AI fills in the rest.</p>
+          <h3 className="font-extrabold">Auto-fill from screenshots or video <span className="ml-1 rounded-full bg-pool/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-pool-hi">AI</span></h3>
+          <p className="text-xs text-mist">Add up to 8 screenshots (top of the listing, all photos, weekday and weekend price, description, amenities, reviews, host profile), or a screen recording of up to 1 minute scrolling through the same parts. AI fills in the rest.</p>
         </div>
       </div>
 
@@ -102,10 +210,26 @@ export function ScreenshotScanner({ api, ai, onResult, toast }: { api: Api; ai: 
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => cam.current?.click()} disabled={busy} className="rounded-xl bg-white px-4 py-2.5 text-sm font-black text-night shadow active:scale-95 disabled:opacity-50">📷 Camera</button>
           <button type="button" onClick={() => files.current?.click()} disabled={busy} className="rounded-xl bg-white/10 px-4 py-2.5 text-sm font-bold hover:bg-white/15 disabled:opacity-50">🖼️ Choose screenshots</button>
-          <span className="hidden self-center text-xs text-mist/70 md:inline">or drag them here · paste with Ctrl+V</span>
+          <button type="button" onClick={() => vid.current?.click()} disabled={busy || reading !== null || Boolean(rec)} className="rounded-xl bg-white/10 px-4 py-2.5 text-sm font-bold hover:bg-white/15 disabled:opacity-50">🎬 Upload video</button>
+          {canRecord && <button type="button" onClick={recordScreen} disabled={busy || reading !== null || Boolean(rec)} className="hidden rounded-xl bg-white/10 px-4 py-2.5 text-sm font-bold hover:bg-white/15 disabled:opacity-50 md:block">⏺️ Record screen</button>}
+          <span className="hidden self-center text-xs text-mist/70 md:inline">or drag files here · paste with Ctrl+V</span>
         </div>
+        {rec && (
+          <div className="scout-pop mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-red-400/40 bg-red-500/10 p-3 text-sm">
+            <span className="h-3 w-3 animate-pulse rounded-full bg-red-500" />
+            <b className="tabular-nums">Recording {rec.secs}s / {MAX_VIDEO_SECONDS}s</b>
+            <span className="text-xs text-mist">Go to the Airbnb tab and scroll slowly through the listing, host profile and calendar.</span>
+            <button type="button" onClick={() => recStop.current?.()} className="ml-auto rounded-lg bg-red-500 px-3 py-1.5 text-xs font-black text-white">■ Stop</button>
+          </div>
+        )}
+        {reading !== null && (
+          <div className="mt-3 text-xs text-mist">🎬 Reading the video… {Math.round(reading * 100)}%
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-pool transition-all" style={{ width: `${reading * 100}%` }} /></div>
+          </div>
+        )}
         <input ref={cam} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFiles} />
         <input ref={files} type="file" accept="image/*" multiple className="hidden" onChange={onFiles} data-testid="scan-files" />
+        <input ref={vid} type="file" accept="video/*" className="hidden" onChange={onFiles} data-testid="scan-video" />
 
         {shots.length > 0 && (
           <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
@@ -123,7 +247,7 @@ export function ScreenshotScanner({ api, ai, onResult, toast }: { api: Api; ai: 
 
       {shots.length > 0 && (
         <button type="button" disabled={busy || !ai} onClick={scan} className="mt-3 w-full rounded-xl bg-gradient-to-r from-pool-deep to-pool py-3 font-black text-night shadow-lg shadow-pool/25 transition active:scale-[.98] disabled:opacity-50">
-          {busy ? <span key={step} className="scout-pop inline-block">🔍 {STEPS[step]}</span> : `✨ Scan ${shots.length} screenshot${shots.length > 1 ? "s" : ""}`}
+          {busy ? <span key={step} className="scout-pop inline-block">🔍 {STEPS[step]}</span> : `✨ Scan ${shots.length} image${shots.length > 1 ? "s" : ""}`}
         </button>
       )}
 
@@ -137,7 +261,7 @@ export function ScreenshotScanner({ api, ai, onResult, toast }: { api: Api; ai: 
             </div>
           )}
           {result.not_visible?.length > 0 && <p className="text-xs text-door-hi">✍️ Not in the screenshots, fill these by hand: {result.not_visible.join(", ")}</p>}
-          <button type="button" onClick={() => { setShots([]); setResult(null); }} className="text-xs text-pool hover:underline">↺ Screenshots for a new listing</button>
+          <button type="button" onClick={() => { setShots([]); setResult(null); }} className="text-xs text-pool hover:underline">↺ Start a new listing</button>
         </div>
       )}
     </div>

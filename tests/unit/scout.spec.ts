@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { autoProblems, buildPitch, linkKey, scoreListing, solutionsText } from "@/lib/scout/catalog";
 import { hashPin, pinMatches } from "@/lib/scout/server";
 import { SCAN_SCHEMA } from "@/lib/scan/listing";
-import { contactLinks } from "@/app/scout/scanner";
+import { contactLinks, pickFrames } from "@/app/scout/scanner";
 
 test.describe("scout", () => {
   test("the same listing gives the same key whatever the domain or tracking junk", () => {
@@ -58,5 +58,13 @@ test.describe("scout", () => {
     expect(es.some(l => l.label === "Companies House")).toBe(false);
     expect(es.some(l => decodeURIComponent(l.url).includes('"VUT/MA/12345"'))).toBe(true);
     expect(contactLinks({}).map(l => l.label)).toEqual(["Google Lens"]);
+  });
+
+  test("video frames: repeats are dropped and the rest thinned to the limit", () => {
+    const f = (v: number) => ({ sig: new Uint8Array(576).fill(v), v });
+    const frames = [f(10), f(11), f(12), f(100), f(101), f(200), f(30), f(30)];
+    expect(pickFrames(frames, 20).map(x => x.v)).toEqual([10, 100, 200, 30]);
+    const many = Array.from({ length: 40 }, (_, i) => f((i * 37) % 256));
+    expect(pickFrames(many, 20)).toHaveLength(20);
   });
 });
