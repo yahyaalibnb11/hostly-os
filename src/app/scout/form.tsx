@@ -86,6 +86,9 @@ export function ListingForm({ api, me, members, editing, ai, onSaved, onCancel, 
   const [insights, setInsights] = useState<string[]>([]); // host facts from the scan, used by the AI contact search
   const [desc, setDesc] = useState(""); // description text and contact clues from the scan, read by the AI contact search
   const [clues, setClues] = useState<string[]>([]);
+  const [biz, setBiz] = useState(""); // "Business details" box and the host's other listings, also for the contact search
+  const [others, setOthers] = useState<string[]>([]);
+  const [findable, setFindable] = useState<{ level: string; reason: string } | null>(null);
   const [scanKey, setScanKey] = useState(0); // a new key empties the scanner after each save
 
   // Put what the AI read from the screenshots into the form. The student checks it before saving.
@@ -102,6 +105,7 @@ export function ListingForm({ api, me, members, editing, ai, onSaved, onCancel, 
       if (extra.length) n.custom_problems = [String(p.custom_problems).trim(), ...extra].filter(Boolean).join("\n");
       const notes = [
         r.host_insights?.length ? `Host: ${r.host_insights.join("; ")}` : "",
+        r.business_details ? `Business details: ${r.business_details}` : "",
         r.review_complaints?.length ? `Guest complaints: ${r.review_complaints.join("; ")}` : "",
         r.review_praise?.length ? `Guests like: ${r.review_praise.join("; ")}` : "",
         r.photo_quality ? `Photos: ${r.photo_quality}` : "",
@@ -114,6 +118,9 @@ export function ListingForm({ api, me, members, editing, ai, onSaved, onCancel, 
     if (Array.isArray(r.host_insights)) setInsights(r.host_insights);
     if (r.description_text) setDesc(r.description_text);
     if (Array.isArray(r.contact_clues)) setClues(r.contact_clues);
+    if (r.business_details) setBiz(r.business_details);
+    if (Array.isArray(r.host_other_listings)) setOthers(r.host_other_listings);
+    if (r.findability?.level) setFindable(r.findability);
   };
 
   const toggle = (id: string) => setPicked(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
@@ -131,7 +138,7 @@ export function ListingForm({ api, me, members, editing, ai, onSaved, onCancel, 
       delete body.link_key; delete body.added_by; delete body.created_at; delete body.updated_at; delete body.score; delete body.grade; delete body.problem_count;
       const r = await api("/api/scout/listings", { body });
       onSaved(r.listing, !editing);
-      if (!editing) { setF({ ...BLANK, market: f.market }); setPicked([]); setSolTouched(false); setPitchTouched(false); setArea(""); setInsights([]); setDesc(""); setClues([]); setScanKey(k => k + 1); }
+      if (!editing) { setF({ ...BLANK, market: f.market }); setPicked([]); setSolTouched(false); setPitchTouched(false); setArea(""); setInsights([]); setDesc(""); setClues([]); setBiz(""); setOthers([]); setFindable(null); setScanKey(k => k + 1); }
     } catch (e) { toast((e as Error).message, "err"); } finally { setBusy(""); }
   };
 
@@ -185,7 +192,7 @@ export function ListingForm({ api, me, members, editing, ai, onSaved, onCancel, 
             </Field>
             <Field label="Contact" hint="Facebook / email / website"><input className={inp} placeholder="facebook.com/… or email" value={f.contact} onChange={e => set("contact", e.target.value)} /></Field>
             <div className="sm:col-span-2"><ContactFinder key={scanKey} host={f.host_name} title={f.title} market={f.market} area={area} licence={f.licence_number}
-              listings={f.host_listings} managedBy={f.managed_by} insights={insights} link={f.link} description={desc} clues={clues} api={api} ai={ai} toast={toast}
+              listings={f.host_listings} managedBy={f.managed_by} insights={insights} link={f.link} description={desc} clues={clues} business={biz} otherListings={others} findable={findable} api={api} ai={ai} toast={toast}
               onUse={(c, n) => setF(p => ({ ...p, contact: c && !String(p.contact).includes(c) ? [String(p.contact).trim(), c].filter(Boolean).join(" , ") : p.contact, notes: n && !String(p.notes).includes(n) ? [String(p.notes).trim(), n].filter(Boolean).join(" | ") : p.notes }))} /></div>
           </div>
         </Step>

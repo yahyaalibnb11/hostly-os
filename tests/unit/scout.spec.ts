@@ -112,6 +112,7 @@ test.describe("scout", () => {
     expect(brief).toBe("Host name: Priya\nCity / area: Manchester\nAbout the host: Lives in Leeds");
     expect(contactBrief({ title: "Loft", clues: ["Brand: Casa Sol"], description: "Book  direct\n at casasol.es" })).toBe("Listing title: Loft\nClues seen on the listing: Brand: Casa Sol\nListing description: Book direct at casasol.es");
     expect(CONTACT_SCHEMA.required).toEqual(expect.arrayContaining(["key_points", "tried"]));
-    expect(SCAN_SCHEMA.required).toEqual(expect.arrayContaining(["description_text", "contact_clues"]));
+    expect(SCAN_SCHEMA.required).toEqual(expect.arrayContaining(["description_text", "contact_clues", "business_details", "host_other_listings", "findability"]));
+    expect(contactBrief({ host: "Ana", business: "Casa Sol SL, B12345678", other_listings: ["Loft · Málaga"] })).toBe("Host name: Ana\nBusiness details on the listing: Casa Sol SL, B12345678\nHost's other listings: Loft · Málaga");
   });
 });

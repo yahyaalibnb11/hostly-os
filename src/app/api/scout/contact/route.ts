@@ -5,7 +5,7 @@ import { findHostContact, type ContactInput } from "@/lib/scan/contact";
 import { requireScout } from "@/lib/scout/server";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 180;
+export const maxDuration = 300;
 
 // Host name, city and title in; public website / social pages, approach points and next steps out.
 export async function POST(req: Request) {

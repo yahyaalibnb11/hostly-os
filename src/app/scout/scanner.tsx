@@ -200,7 +200,7 @@ export function ScreenshotScanner({ api, ai, onResult, toast }: { api: Api; ai: 
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-pool-deep to-pool text-xl shadow-lg shadow-pool/30">📸</div>
         <div>
           <h3 className="font-extrabold">Auto-fill from screenshots or video <span className="ml-1 rounded-full bg-pool/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-pool-hi">AI</span></h3>
-          <p className="text-xs text-mist">Add up to 8 screenshots (top of the listing, all photos, weekday and weekend price, description, amenities, reviews, host profile), or a screen recording of up to 1 minute scrolling through the same parts. AI fills in the rest.</p>
+          <p className="text-xs text-mist">Add up to 9 screenshots (top of the listing, all photos, weekday and weekend price, description, amenities, reviews, host profile, Business details), or a screen recording of up to 1 minute scrolling through the same parts. AI fills in the rest.</p>
         </div>
       </div>
 
@@ -255,6 +255,7 @@ export function ScreenshotScanner({ api, ai, onResult, toast }: { api: Api; ai: 
       {result && !busy && (
         <div className="scout-pop mt-3 space-y-2 rounded-xl bg-white/5 p-3 text-sm">
           {result.summary && <p className="text-bone">🧠 {result.summary}</p>}
+          <FindBadge f={result.findability} />
           {result.host_insights?.length > 0 && <div><div className="text-xs font-bold text-door">👤 About the host</div><ul className="list-disc pl-4 text-xs text-bone/80">{result.host_insights.map((x: string) => <li key={x}>{x}</li>)}</ul></div>}
           {(result.review_complaints?.length > 0 || result.review_praise?.length > 0) && (
             <div className="grid gap-2 sm:grid-cols-2">
@@ -293,11 +294,21 @@ export function contactLinks({ host, title, market, area, licence }: { host?: st
 }
 
 type Contact = { found: { kind: string; value: string; confidence: string; why: string }[]; key_points: string[]; tried: { method: string; result: string; detail: string }[]; owner_name: string; best_channel: string; approach_points: string[]; next_steps: string[]; summary: string };
-const KIND_ICON: Record<string, string> = { website: "🌐", facebook: "📘", instagram: "📸", linkedin: "💼", company: "🏢", email: "✉️", phone: "📞", other_listing: "🏠", other: "🔗" };
+const KIND_ICON: Record<string, string> = { website: "🌐", email: "✉️", phone: "📞", whatsapp: "💬", facebook: "📘", instagram: "📸", linkedin: "💼", tiktok: "🎵", youtube: "▶️", x: "✖️", company: "🏢", google_business: "📍", other_listing: "🏠", review_site: "⭐", other: "🔗" };
+const FIND: Record<string, { label: string; cls: string; tip: string }> = {
+  high: { label: "🟢 Easy to find", cls: "bg-pool/15 text-pool-hi", tip: "Good lead: run the AI search now." },
+  medium: { label: "🟡 Maybe findable", cls: "bg-door/15 text-door-hi", tip: "Worth one AI search. If nothing, move on." },
+  low: { label: "🔴 Hard to find", cls: "bg-red-500/15 text-red-300", tip: "Single host with few clues: save it, but spend your time on easier hosts first." },
+};
+export function FindBadge({ f }: { f?: { level?: string; reason?: string } | null }) {
+  const x = f?.level ? FIND[f.level] : null;
+  if (!x) return null;
+  return <div data-testid="findability" className={`rounded-lg px-3 py-2 text-xs ${x.cls}`}><b>{x.label}</b>{f?.reason ? ` · ${f.reason}` : ""}<div className="opacity-80">{x.tip}</div></div>;
+}
 const CONF: Record<string, string> = { high: "bg-pool/20 text-pool-hi", medium: "bg-door/20 text-door-hi", low: "bg-white/10 text-mist" };
 const hrefOf = (v: string) => v.includes("@") && !v.startsWith("http") ? `mailto:${v}` : /^\+?[\d ()-]{7,}$/.test(v) ? `tel:${v.replace(/[^\d+]/g, "")}` : v;
 
-type FinderProps = { host?: string; title?: string; market?: string; area?: string; licence?: string; listings?: string | number; managedBy?: string; insights?: string[]; link?: string; description?: string; clues?: string[] };
+type FinderProps = { host?: string; title?: string; market?: string; area?: string; licence?: string; listings?: string | number; managedBy?: string; insights?: string[]; link?: string; description?: string; clues?: string[]; business?: string; otherListings?: string[]; findable?: { level: string; reason: string } | null };
 
 export function ContactFinder(props: FinderProps & { api?: Api; ai?: boolean; toast?: (m: string, k?: "ok" | "err") => void; onUse?: (contact: string, notes: string) => void }) {
   const links = contactLinks(props);
@@ -308,14 +319,14 @@ export function ContactFinder(props: FinderProps & { api?: Api; ai?: boolean; to
   const [showDesc, setShowDesc] = useState(false);
   useEffect(() => { if (props.description) setDesc(props.description); }, [props.description]);
   const clues = props.clues ?? [];
-  const canSearch = Boolean(props.host?.trim() || props.title?.trim() || props.licence?.trim() || desc.trim() || clues.length);
+  const canSearch = Boolean(props.host?.trim() || props.title?.trim() || props.licence?.trim() || desc.trim() || clues.length || props.business?.trim());
 
   const search = async () => {
     if (!props.api) return;
     setBusy(true); setErr(""); setRes(null);
     try {
       const m = marketById(props.market || "");
-      const r = await props.api("/api/scout/contact", { body: { host: props.host, title: props.title, city: props.area || m?.name, country: m?.country, licence: props.licence, listings: props.listings, managed_by: props.managedBy, insights: props.insights, link: props.link, description: desc, clues } });
+      const r = await props.api("/api/scout/contact", { body: { host: props.host, title: props.title, city: props.area || m?.name, country: m?.country, licence: props.licence, listings: props.listings, managed_by: props.managedBy, insights: props.insights, link: props.link, description: desc, clues, business: props.business, other_listings: props.otherListings } });
       setRes(r.result);
     } catch (e: any) { setErr(e?.message || "Search failed. Try again."); }
     finally { setBusy(false); }
@@ -337,9 +348,11 @@ export function ContactFinder(props: FinderProps & { api?: Api; ai?: boolean; to
         <div className="mb-3">
           <button type="button" data-testid="ai-contact" onClick={search} disabled={busy || !canSearch || props.ai === false}
             className="rounded-lg bg-pool px-3 py-2 text-xs font-bold text-night transition hover:bg-pool-hi disabled:cursor-not-allowed disabled:opacity-50">
-            {busy ? "🤖 Reading the listing and trying every method… (30-90 sec)" : "🤖 Find contact with AI"}
+            {busy ? "🤖 Deep search: reading the listing and checking every platform… (1-4 min)" : "🤖 Find contact with AI"}
           </button>
           <span className="ml-2 text-xs text-mist/70">{props.ai === false ? "AI isn't connected yet" : canSearch ? "searches Google for website, Facebook, Instagram, LinkedIn, company" : "scan the listing or enter the host name first"}</span>
+          {props.findable && <div className="mt-2"><FindBadge f={props.findable} /></div>}
+          {props.business && <p className="mt-2 text-xs text-mist"><b className="text-bone/80">🏢 Business details:</b> {props.business}</p>}
           {clues.length > 0 && <p className="mt-2 text-xs text-mist"><b className="text-bone/80">🧩 Clues from the scan:</b> {clues.join(" · ")}</p>}
           <button type="button" onClick={() => setShowDesc(v => !v)} className="mt-2 block text-xs text-pool hover:underline">
             {showDesc ? "▾ Hide description" : desc ? "▸ Description read by AI (check or add more)" : "▸ Paste the listing description for better results"}
