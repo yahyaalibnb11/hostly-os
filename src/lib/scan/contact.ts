@@ -42,17 +42,32 @@ export const CONTACT_SCHEMA = {
         required: ["method", "result", "detail"],
       },
     },
+    platforms: {
+      type: "array",
+      description: "For EACH of these channels say whether this same property (or host) is listed there: airbnb, vrbo, booking, expedia, tripadvisor, google_vacation_rentals, direct_site (the host's own booking website). One entry per channel, all 7",
+      items: {
+        type: "object", additionalProperties: false,
+        properties: {
+          platform: { type: "string", enum: ["airbnb", "vrbo", "booking", "expedia", "tripadvisor", "google_vacation_rentals", "direct_site"] },
+          status: { type: "string", enum: ["listed", "not_found", "unsure"], description: "listed: you saw this property there; not_found: you searched and it is not there; unsure: could not check" },
+          url: s("The page URL if listed, else empty"),
+        },
+        required: ["platform", "status", "url"],
+      },
+    },
+    channel_opportunity: s("One or two lines for the pitch: which big channels the host is missing (e.g. only on Airbnb, not on Booking.com or Vrbo) and what that costs them, or that they are already multi-channel"),
     owner_name: s("The real person or company behind the listing if you found it, else empty"),
     best_channel: s("The single best way to reach this host first, e.g. \"Email from their website\" or \"Facebook message to their page\". Never the Airbnb inbox"),
     approach_points: { type: "array", items: { type: "string" }, description: "3-5 short, practical points on how to approach THIS host and what to say first, based on what you learned" },
     next_steps: { type: "array", items: { type: "string" }, description: "3-5 concrete things the researcher can do next to find or confirm the contact. Always give these, especially when nothing was found" },
     summary: s("1-2 plain-English lines: what you found and how sure you are"),
   },
-  required: ["found", "key_points", "tried", "owner_name", "best_channel", "approach_points", "next_steps", "summary"],
+  required: ["found", "key_points", "tried", "platforms", "channel_opportunity", "owner_name", "best_channel", "approach_points", "next_steps", "summary"],
 };
 
 export type ContactInput = { host?: string; title?: string; city?: string; country?: string; licence?: string; listings?: number | string; managed_by?: string; insights?: string[]; link?: string; description?: string; clues?: string[]; business?: string; other_listings?: string[] };
-export type ContactResult = { found: { kind: string; value: string; confidence: string; why: string }[]; key_points: string[]; tried: { method: string; result: string; detail: string }[]; owner_name: string; best_channel: string; approach_points: string[]; next_steps: string[]; summary: string };
+export type Platform = { platform: string; status: string; url: string };
+export type ContactResult = { found: { kind: string; value: string; confidence: string; why: string }[]; platforms: Platform[]; channel_opportunity: string; key_points: string[]; tried: { method: string; result: string; detail: string }[]; owner_name: string; best_channel: string; approach_points: string[]; next_steps: string[]; summary: string };
 
 const clip = (v: unknown, n = 160) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
 
@@ -87,6 +102,19 @@ export function cleanFound(found: ContactResult["found"]) {
   }).slice(0, 15);
 }
 
+export const CHANNELS = ["airbnb", "vrbo", "booking", "expedia", "tripadvisor", "google_vacation_rentals", "direct_site"];
+
+// One row per channel, always in the same order; unknown or missing channels become "unsure".
+export function cleanPlatforms(list: Platform[] | undefined): Platform[] {
+  const got = new Map((Array.isArray(list) ? list : []).filter(p => CHANNELS.includes(p?.platform)).map(p => [p.platform, p]));
+  return CHANNELS.map(c => {
+    const p = got.get(c);
+    const status = ["listed", "not_found", "unsure"].includes(p?.status ?? "") ? p!.status : "unsure";
+    const url = /^https?:\/\/\S+\.\S+$/i.test(String(p?.url ?? "").trim()) ? String(p!.url).trim() : "";
+    return { platform: c, status, url };
+  });
+}
+
 export async function findHostContact(input: ContactInput): Promise<ContactResult> {
   const host = clip(input.host, 80), title = clip(input.title);
   if (!host && !title && !clip(input.licence) && !clip(input.description) && !(input.clues ?? []).length && !clip(input.business)) throw new HttpError(400, "Add the host name or the listing title first");
@@ -100,6 +128,7 @@ export async function findHostContact(input: ContactInput): Promise<ContactResul
     "You are an expert OSINT researcher for a short-term rental co-hosting team. Your job: find PUBLIC business contact details of a holiday-let host so the team can offer their services outside Airbnb. Be relentless: use as many searches as you need and do not give up after the first few misses.",
     "Step 1, read: go through the description, host bio, business details, other listings and clues word by word. Write down every key point: business or trade names, registration / VAT / licence numbers, websites, emails, phone fragments, building or complex names, streets, other platforms, company words (Ltd, LLP, SL, SLU, Lda, GmbH, LLC), co-host names, the host's job or employer, unusual phrases.",
     "Step 2, search every channel that can apply and record each one in tried: (1) the business details: registered name, number or address on Google and the company register; (2) the exact listing title in quotes; (3) every brand, business or building name + city; (4) host name + city + 'apartments' / 'holiday let' / 'short let' / 'serviced apartments' / 'property management'; (5) the licence number, and the public tourism registry of that region (e.g. Spain's regional tourism registers, Portugal RNAL, Greece AMA); (6) the same property on Booking.com, Vrbo, Expedia, TripAdvisor, Holidaylettings, Sykes, Cottages.com and direct-booking sites (Lodgify, Hostaway, Guesty, Smoobu, Uplisting, Hospitable pages often sit on the host's own domain); (7) company registers: UK Companies House, OpenCorporates, Spain/Portugal/Austria/Germany registries, US state business search; (8) Google Maps / Google Business profile and review sites (Trustpilot, Yelp, Yell) for the brand or building; (9) Facebook pages and groups, Instagram, LinkedIn, TikTok, YouTube, X; (10) unusual phrases from the description in quotes, because hosts reuse their text on their own site; (11) the host's other listings' titles, which often reveal the brand; (12) the host's job or employer from the bio + name on LinkedIn.",
+    "Also check, for the pitch, which booking channels this property is on: search the title, building and brand on Airbnb, Vrbo, Booking.com, Expedia, TripAdvisor, Google vacation rentals and a direct-booking site, and fill platforms for all 7 (airbnb is listed, since the listing came from there, unless the input says another platform). A host only on Airbnb is missing bookings, which is a strong selling point.",
     "Step 3, dig: when you find a website or business page, open it with web_fetch and read its contact, about, imprint / impressum, legal notice or terms page for the email, phone, WhatsApp, company name and registration number. When something partly matches, follow it up with more searches before moving on.",
     "Only report contacts you actually saw on a page or in search results. Never invent URLs, emails or phone numbers. Mark how sure you are, and say in why what matched.",
     "Stay with publicly published BUSINESS information: business emails, phones, websites, company records and social pages. Do not look up or report private home addresses, family members or personal data of private individuals.",
@@ -128,6 +157,8 @@ export async function findHostContact(input: ContactInput): Promise<ContactResul
       const r = call.input as ContactResult;
       return {
         found: cleanFound(r.found),
+        platforms: cleanPlatforms(r.platforms),
+        channel_opportunity: clip(r.channel_opportunity, 300),
         key_points: (r.key_points ?? []).map(x => clip(x, 200)).filter(Boolean).slice(0, 8),
         tried: (Array.isArray(r.tried) ? r.tried : []).slice(0, 20).map(t => ({ method: clip(t?.method, 120), result: ["found", "partial", "nothing"].includes(t?.result) ? t.result : "nothing", detail: clip(t?.detail, 200) })).filter(t => t.method),
         owner_name: clip(r.owner_name, 120),

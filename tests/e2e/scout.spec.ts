@@ -121,6 +121,7 @@ test("screenshots fill the form with AI", async ({ page }) => {
     expect(b.business).toContain("01234567");
     expect(b.other_listings).toEqual(["Loft · Salford"]);
     await r.fulfill({ json: { result: {
+      platforms: [{ platform: "airbnb", status: "listed", url: "" }, { platform: "booking", status: "not_found", url: "" }], channel_opportunity: "Only on Airbnb: missing Booking.com guests.",
       key_points: ["Brand name Priya Stays in the description"], tried: [{ method: "Brand name + city", result: "found", detail: "priyastays.co.uk" }, { method: "Licence number", result: "nothing", detail: "No licence shown" }],
       found: [{ kind: "website", value: "https://priyastays.co.uk", confidence: "high", why: "Same photos and title" }, { kind: "instagram", value: "https://instagram.com/priyastays", confidence: "medium", why: "Linked from the website" }],
       owner_name: "Priya Stays Ltd", best_channel: "Email from the website contact page", approach_points: ["Mention her dark living room photos"], next_steps: ["Check Companies House for the director"], summary: "Found her own website.",
@@ -132,6 +133,8 @@ test("screenshots fill the form with AI", async ({ page }) => {
   await expect(page.getByTestId("ai-contact-result").getByText("Found her own website.")).toBeVisible();
   await expect(page.getByRole("link", { name: "https://priyastays.co.uk" })).toBeVisible();
   await expect(page.getByText("What the AI tried (2 methods)")).toBeVisible();
+  await expect(page.getByTestId("ai-platforms")).toContainText("❌ Booking.com");
+  await expect(page.getByText("Only on Airbnb: missing Booking.com guests.")).toBeVisible();
   await page.getByRole("button", { name: /Add to Contact and Notes/ }).click();
   await expect(page.getByPlaceholder("facebook.com/… or email")).toHaveValue("https://priyastays.co.uk , https://instagram.com/priyastays");
   await page.getByRole("button", { name: /Save listing/ }).click();

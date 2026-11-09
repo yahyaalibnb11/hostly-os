@@ -3,7 +3,7 @@ import { autoProblems, buildPitch, linkKey, scoreListing, solutionsText } from "
 import { hashPin, pinMatches } from "@/lib/scout/server";
 import { CHECKS, marketFromPlace, pricesFromQuotes, problemsFromScan, SCAN_SCHEMA } from "@/lib/scan/listing";
 import { contactLinks, pickFrames } from "@/app/scout/scanner";
-import { cleanFound, CONTACT_SCHEMA, contactBrief } from "@/lib/scan/contact";
+import { cleanFound, cleanPlatforms, CONTACT_SCHEMA, contactBrief } from "@/lib/scan/contact";
 
 test.describe("scout", () => {
   test("the same listing gives the same key whatever the domain or tracking junk", () => {
@@ -112,6 +112,10 @@ test.describe("scout", () => {
     expect(brief).toBe("Host name: Priya\nCity / area: Manchester\nAbout the host: Lives in Leeds");
     expect(contactBrief({ title: "Loft", clues: ["Brand: Casa Sol"], description: "Book  direct\n at casasol.es" })).toBe("Listing title: Loft\nClues seen on the listing: Brand: Casa Sol\nListing description: Book direct at casasol.es");
     expect(CONTACT_SCHEMA.required).toEqual(expect.arrayContaining(["key_points", "tried"]));
+    const pl = cleanPlatforms([{ platform: "booking", status: "listed", url: "https://booking.com/x" }, { platform: "myspace", status: "listed", url: "" }, { platform: "vrbo", status: "maybe", url: "javascript:x" }]);
+    expect(pl.map(p => p.platform)).toEqual(["airbnb", "vrbo", "booking", "expedia", "tripadvisor", "google_vacation_rentals", "direct_site"]);
+    expect(pl[2]).toEqual({ platform: "booking", status: "listed", url: "https://booking.com/x" });
+    expect(pl[1]).toEqual({ platform: "vrbo", status: "unsure", url: "" });
     expect(SCAN_SCHEMA.required).toEqual(expect.arrayContaining(["description_text", "contact_clues", "business_details", "host_other_listings", "findability"]));
     expect(contactBrief({ host: "Ana", business: "Casa Sol SL, B12345678", other_listings: ["Loft · Málaga"] })).toBe("Host name: Ana\nBusiness details on the listing: Casa Sol SL, B12345678\nHost's other listings: Loft · Málaga");
   });

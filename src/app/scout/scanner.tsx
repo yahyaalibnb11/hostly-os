@@ -293,8 +293,9 @@ export function contactLinks({ host, title, market, area, licence }: { host?: st
   return links;
 }
 
-type Contact = { found: { kind: string; value: string; confidence: string; why: string }[]; key_points: string[]; tried: { method: string; result: string; detail: string }[]; owner_name: string; best_channel: string; approach_points: string[]; next_steps: string[]; summary: string };
+type Contact = { found: { kind: string; value: string; confidence: string; why: string }[]; platforms: { platform: string; status: string; url: string }[]; channel_opportunity: string; key_points: string[]; tried: { method: string; result: string; detail: string }[]; owner_name: string; best_channel: string; approach_points: string[]; next_steps: string[]; summary: string };
 const KIND_ICON: Record<string, string> = { website: "🌐", email: "✉️", phone: "📞", whatsapp: "💬", facebook: "📘", instagram: "📸", linkedin: "💼", tiktok: "🎵", youtube: "▶️", x: "✖️", company: "🏢", google_business: "📍", other_listing: "🏠", review_site: "⭐", other: "🔗" };
+const CHANNEL_NAME: Record<string, string> = { airbnb: "Airbnb", vrbo: "Vrbo", booking: "Booking.com", expedia: "Expedia", tripadvisor: "TripAdvisor", google_vacation_rentals: "Google", direct_site: "Own website" };
 const FIND: Record<string, { label: string; cls: string; tip: string }> = {
   high: { label: "🟢 Easy to find", cls: "bg-pool/15 text-pool-hi", tip: "Good lead: run the AI search now." },
   medium: { label: "🟡 Maybe findable", cls: "bg-door/15 text-door-hi", tip: "Worth one AI search. If nothing, move on." },
@@ -336,7 +337,7 @@ export function ContactFinder(props: FinderProps & { api?: Api; ai?: boolean; to
     if (!res || !props.onUse) return;
     const top = [...res.found].sort((a, b) => ["high", "medium", "low"].indexOf(a.confidence) - ["high", "medium", "low"].indexOf(b.confidence));
     const contact = top.filter(f => f.confidence !== "low").slice(0, 3).map(f => f.value).join(" , ");
-    const notes = [res.owner_name && `Owner: ${res.owner_name}`, res.best_channel && `Best way: ${res.best_channel}`, res.key_points.length ? `Key points: ${res.key_points.join("; ")}` : "", res.approach_points.length ? `Approach: ${res.approach_points.join("; ")}` : ""].filter(Boolean).join(" | ");
+    const notes = [res.owner_name && `Owner: ${res.owner_name}`, res.best_channel && `Best way: ${res.best_channel}`, res.platforms?.length ? `Platforms: ${res.platforms.map(p => `${CHANNEL_NAME[p.platform] ?? p.platform} ${p.status === "listed" ? "yes" : p.status === "not_found" ? "no" : "?"}`).join(", ")}` : "", res.channel_opportunity ? `Channel pitch: ${res.channel_opportunity}` : "", res.key_points.length ? `Key points: ${res.key_points.join("; ")}` : "", res.approach_points.length ? `Approach: ${res.approach_points.join("; ")}` : ""].filter(Boolean).join(" | ");
     props.onUse(contact, notes);
     props.toast?.("✅ Contact and approach points added");
   };
@@ -365,6 +366,19 @@ export function ContactFinder(props: FinderProps & { api?: Api; ai?: boolean; to
             <div data-testid="ai-contact-result" className="mt-3 space-y-3 rounded-lg border border-pool/30 bg-pool/[.06] p-3 text-sm">
               {res.summary && <p className="text-bone">{res.summary}</p>}
               {res.owner_name && <p className="text-xs text-mist">Owner / company: <b className="text-bone">{res.owner_name}</b></p>}
+              {res.platforms?.length > 0 && (
+                <div data-testid="ai-platforms">
+                  <p className="text-xs font-bold text-bone/80">📡 Where this property is listed</p>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {res.platforms.map(p => {
+                      const cls = p.status === "listed" ? "bg-pool/20 text-pool-hi" : p.status === "not_found" ? "bg-red-500/15 text-red-300" : "bg-white/10 text-mist";
+                      const label = `${p.status === "listed" ? "✅" : p.status === "not_found" ? "❌" : "❔"} ${CHANNEL_NAME[p.platform] ?? p.platform}`;
+                      return p.url ? <a key={p.platform} href={p.url} target="_blank" rel="noreferrer" className={`rounded-full px-2.5 py-1 text-xs font-semibold hover:underline ${cls}`}>{label} ↗</a> : <span key={p.platform} className={`rounded-full px-2.5 py-1 text-xs font-semibold ${cls}`}>{label}</span>;
+                    })}
+                  </div>
+                  {res.channel_opportunity && <p className="mt-1 text-xs text-door-hi">💡 {res.channel_opportunity}</p>}
+                </div>
+              )}
               {res.key_points.length > 0 && <div><p className="text-xs font-bold text-bone/80">🧩 Key points from the listing</p><ul className="ml-4 list-disc text-xs text-mist">{res.key_points.map(x => <li key={x}>{x}</li>)}</ul></div>}
               {res.found.length > 0 ? (
                 <ul className="space-y-1.5">
