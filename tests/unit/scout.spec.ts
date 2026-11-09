@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { autoProblems, buildPitch, linkKey, scoreListing, solutionsText } from "@/lib/scout/catalog";
 import { hashPin, pinMatches } from "@/lib/scout/server";
-import { marketFromPlace, pricesFromQuotes, SCAN_SCHEMA } from "@/lib/scan/listing";
+import { CHECKS, marketFromPlace, pricesFromQuotes, problemsFromScan, SCAN_SCHEMA } from "@/lib/scan/listing";
 import { contactLinks, pickFrames } from "@/app/scout/scanner";
 import { cleanFound, CONTACT_SCHEMA, contactBrief } from "@/lib/scan/contact";
 
@@ -49,6 +49,18 @@ test.describe("scout", () => {
   test("the screenshot scanner asks for every field it describes", () => {
     expect([...SCAN_SCHEMA.required].sort()).toEqual(Object.keys(SCAN_SCHEMA.properties).sort());
     expect(SCAN_SCHEMA.properties.problems.items.enum).toContain("weak_cover");
+  });
+
+  test("the scanner judges every non-number problem and turns verdicts into ticks", () => {
+    expect(Object.keys(SCAN_SCHEMA.properties.checks.properties).sort()).toEqual(Object.keys(CHECKS).sort());
+    for (const id of ["empty_calendar", "price_off", "high_cleaning_fee", "no_instant_book", "far_owner", "weak_company", "no_licence", "bad_photos", "weak_cover", "boring_title", "weak_description"]) expect(CHECKS[id]).toBeTruthy();
+    const v = (verdict: string) => ({ verdict, why: "" });
+    const r = problemsFromScan({ problems: ["bad_photos"], checks: { boring_title: v("yes"), bad_photos: v("no"), far_owner: v("not_visible") }, open_nights_next_30: 22, cleaning_fee: 60, weekday_price: 100, instant_book: "off", market: "uk-manchester", licence_number: "" });
+    expect(r.sort()).toEqual(["boring_title", "empty_calendar", "high_cleaning_fee", "no_instant_book"]);
+    expect(problemsFromScan({ checks: { no_licence: v("yes") }, market: "uk-manchester" })).toEqual([]);
+    expect(problemsFromScan({ checks: { no_licence: v("yes") }, market: "es-alicante" })).toEqual(["no_licence"]);
+    expect(problemsFromScan({ checks: { no_licence: v("yes") }, market: "es-alicante", licence_number: "VUT-1" })).toEqual([]);
+    expect(problemsFromScan({ open_nights_next_30: 5, cleaning_fee: 20, weekday_price: 100, instant_book: "on", checks: { no_instant_book: v("yes") } })).toEqual([]);
   });
 
   test("contact search links use the host, city and market", () => {

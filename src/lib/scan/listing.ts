@@ -160,7 +160,7 @@ export async function scanListingImages(input: ScanImage[]) {
   const client = new Anthropic({ apiKey: env.anthropicKey });
   const msg = await client.beta.messages.create({
     model: process.env.SCOUT_SCAN_MODEL || "claude-sonnet-5-5",
-    max_tokens: 6000,
+    max_tokens: 8000,
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default",
     output_config: { effort: "medium", format: { type: "json_schema", schema: SCAN_SCHEMA } },
