@@ -292,11 +292,76 @@ export function contactLinks({ host, title, market, area, licence }: { host?: st
   return links;
 }
 
-export function ContactFinder(props: { host?: string; title?: string; market?: string; area?: string; licence?: string }) {
+type Contact = { found: { kind: string; value: string; confidence: string; why: string }[]; owner_name: string; best_channel: string; approach_points: string[]; next_steps: string[]; summary: string };
+const KIND_ICON: Record<string, string> = { website: "🌐", facebook: "📘", instagram: "📸", linkedin: "💼", company: "🏢", email: "✉️", phone: "📞", other_listing: "🏠", other: "🔗" };
+const CONF: Record<string, string> = { high: "bg-pool/20 text-pool-hi", medium: "bg-door/20 text-door-hi", low: "bg-white/10 text-mist" };
+const hrefOf = (v: string) => v.includes("@") && !v.startsWith("http") ? `mailto:${v}` : /^\+?[\d ()-]{7,}$/.test(v) ? `tel:${v.replace(/[^\d+]/g, "")}` : v;
+
+type FinderProps = { host?: string; title?: string; market?: string; area?: string; licence?: string; listings?: string | number; managedBy?: string; insights?: string[]; link?: string };
+
+export function ContactFinder(props: FinderProps & { api?: Api; ai?: boolean; toast?: (m: string, k?: "ok" | "err") => void; onUse?: (contact: string, notes: string) => void }) {
   const links = contactLinks(props);
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<Contact | null>(null);
+  const [err, setErr] = useState("");
+  const canSearch = Boolean(props.host?.trim() || props.title?.trim() || props.licence?.trim());
+
+  const search = async () => {
+    if (!props.api) return;
+    setBusy(true); setErr(""); setRes(null);
+    try {
+      const m = marketById(props.market || "");
+      const r = await props.api("/api/scout/contact", { body: { host: props.host, title: props.title, city: props.area || m?.name, country: m?.country, licence: props.licence, listings: props.listings, managed_by: props.managedBy, insights: props.insights, link: props.link } });
+      setRes(r.result);
+    } catch (e: any) { setErr(e?.message || "Search failed. Try again."); }
+    finally { setBusy(false); }
+  };
+
+  const use = () => {
+    if (!res || !props.onUse) return;
+    const top = [...res.found].sort((a, b) => ["high", "medium", "low"].indexOf(a.confidence) - ["high", "medium", "low"].indexOf(b.confidence));
+    const contact = top.filter(f => f.confidence !== "low").slice(0, 3).map(f => f.value).join(" , ");
+    const notes = [res.owner_name && `Owner: ${res.owner_name}`, res.best_channel && `Best way: ${res.best_channel}`, res.approach_points.length ? `Approach: ${res.approach_points.join("; ")}` : ""].filter(Boolean).join(" | ");
+    props.onUse(contact, notes);
+    props.toast?.("✅ Contact and approach points added");
+  };
+
   return (
     <div className="rounded-xl border border-white/10 bg-white/[.03] p-3">
       <div className="mb-2 text-xs font-bold text-bone/80">🔎 Find contact <span className="font-normal text-mist/70">· never pitch in the Airbnb inbox, reach the host here</span></div>
+      {props.api && (
+        <div className="mb-3">
+          <button type="button" data-testid="ai-contact" onClick={search} disabled={busy || !canSearch || props.ai === false}
+            className="rounded-lg bg-pool px-3 py-2 text-xs font-bold text-night transition hover:bg-pool-hi disabled:cursor-not-allowed disabled:opacity-50">
+            {busy ? "🤖 Searching the internet… (20-60 sec)" : "🤖 Find contact with AI"}
+          </button>
+          <span className="ml-2 text-xs text-mist/70">{props.ai === false ? "AI isn't connected yet" : canSearch ? "searches Google for website, Facebook, Instagram, LinkedIn, company" : "scan the listing or enter the host name first"}</span>
+          {busy && <div className="mt-2 h-1 overflow-hidden rounded bg-white/10"><div className="scout-scanline h-full w-1/3 bg-pool" /></div>}
+          {err && <p className="mt-2 text-xs text-red-300">{err}</p>}
+          {res && (
+            <div data-testid="ai-contact-result" className="mt-3 space-y-3 rounded-lg border border-pool/30 bg-pool/[.06] p-3 text-sm">
+              {res.summary && <p className="text-bone">{res.summary}</p>}
+              {res.owner_name && <p className="text-xs text-mist">Owner / company: <b className="text-bone">{res.owner_name}</b></p>}
+              {res.found.length > 0 ? (
+                <ul className="space-y-1.5">
+                  {res.found.map(f => (
+                    <li key={f.value} className="flex flex-wrap items-center gap-2 text-xs">
+                      <span>{KIND_ICON[f.kind] ?? "🔗"}</span>
+                      <a href={hrefOf(f.value)} target="_blank" rel="noreferrer" className="break-all font-semibold text-pool-hi hover:underline">{f.value}</a>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${CONF[f.confidence] ?? CONF.low}`}>{f.confidence}</span>
+                      <span className="text-mist/80">{f.why}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="text-xs text-door-hi">No public page found yet. Follow the next steps below.</p>}
+              {res.best_channel && <p className="text-xs"><b className="text-door-hi">⭐ Best way to reach:</b> <span className="text-bone">{res.best_channel}</span></p>}
+              {res.approach_points.length > 0 && <div><p className="text-xs font-bold text-bone/80">💬 How to approach</p><ul className="ml-4 list-disc text-xs text-mist">{res.approach_points.map(x => <li key={x}>{x}</li>)}</ul></div>}
+              {res.next_steps.length > 0 && <div><p className="text-xs font-bold text-bone/80">👣 Next steps</p><ol className="ml-4 list-decimal text-xs text-mist">{res.next_steps.map(x => <li key={x}>{x}</li>)}</ol></div>}
+              {props.onUse && <button type="button" onClick={use} className="rounded-lg bg-door px-3 py-1.5 text-xs font-bold text-night hover:bg-door-hi">➕ Add to Contact and Notes</button>}
+            </div>
+          )}
+        </div>
+      )}
       {!props.host && <p className="mb-2 text-xs text-mist/70">Enter the host name to get more search buttons.</p>}
       <div className="flex flex-wrap gap-1.5">
         {links.map(l => <a key={l.label} href={l.url} target="_blank" rel="noreferrer" title={l.hint} className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-bone transition hover:bg-door/25 hover:text-door-hi">{l.label} ↗</a>)}

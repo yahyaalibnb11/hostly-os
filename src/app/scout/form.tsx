@@ -83,6 +83,7 @@ export function ListingForm({ api, me, members, editing, ai, onSaved, onCancel, 
   }, [s.ids.join(), f.custom_problems, f.host_name, f.title, f.market, offer, pitchTouched]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [area, setArea] = useState("");
+  const [insights, setInsights] = useState<string[]>([]); // host facts from the scan, used by the AI contact search
   const [scanKey, setScanKey] = useState(0); // a new key empties the scanner after each save
 
   // Put what the AI read from the screenshots into the form. The student checks it before saving.
@@ -108,6 +109,7 @@ export function ListingForm({ api, me, members, editing, ai, onSaved, onCancel, 
     });
     if (Array.isArray(r.problems)) setPicked(p => Array.from(new Set([...p, ...r.problems.filter((id: string) => PROBLEMS.some(x => x.id === id && !x.auto))])));
     if (r.city_or_area) setArea(r.city_or_area);
+    if (Array.isArray(r.host_insights)) setInsights(r.host_insights);
   };
 
   const toggle = (id: string) => setPicked(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
@@ -125,7 +127,7 @@ export function ListingForm({ api, me, members, editing, ai, onSaved, onCancel, 
       delete body.link_key; delete body.added_by; delete body.created_at; delete body.updated_at; delete body.score; delete body.grade; delete body.problem_count;
       const r = await api("/api/scout/listings", { body });
       onSaved(r.listing, !editing);
-      if (!editing) { setF({ ...BLANK, market: f.market }); setPicked([]); setSolTouched(false); setPitchTouched(false); setArea(""); setScanKey(k => k + 1); }
+      if (!editing) { setF({ ...BLANK, market: f.market }); setPicked([]); setSolTouched(false); setPitchTouched(false); setArea(""); setInsights([]); setScanKey(k => k + 1); }
     } catch (e) { toast((e as Error).message, "err"); } finally { setBusy(""); }
   };
 
@@ -178,7 +180,9 @@ export function ListingForm({ api, me, members, editing, ai, onSaved, onCancel, 
               <select className={inp} value={f.managed_by} disabled={ro} onChange={e => set("managed_by", e.target.value)}>{MANAGED_BY.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}</select>
             </Field>
             <Field label="Contact" hint="Facebook / email / website"><input className={inp} placeholder="facebook.com/… or email" value={f.contact} onChange={e => set("contact", e.target.value)} /></Field>
-            <div className="sm:col-span-2"><ContactFinder host={f.host_name} title={f.title} market={f.market} area={area} licence={f.licence_number} /></div>
+            <div className="sm:col-span-2"><ContactFinder key={scanKey} host={f.host_name} title={f.title} market={f.market} area={area} licence={f.licence_number}
+              listings={f.host_listings} managedBy={f.managed_by} insights={insights} link={f.link} api={api} ai={ai} toast={toast}
+              onUse={(c, n) => setF(p => ({ ...p, contact: c && !String(p.contact).includes(c) ? [String(p.contact).trim(), c].filter(Boolean).join(" , ") : p.contact, notes: n && !String(p.notes).includes(n) ? [String(p.notes).trim(), n].filter(Boolean).join(" | ") : p.notes }))} /></div>
           </div>
         </Step>
 

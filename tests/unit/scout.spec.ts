@@ -3,6 +3,7 @@ import { autoProblems, buildPitch, linkKey, scoreListing, solutionsText } from "
 import { hashPin, pinMatches } from "@/lib/scout/server";
 import { marketFromPlace, pricesFromQuotes, SCAN_SCHEMA } from "@/lib/scan/listing";
 import { contactLinks, pickFrames } from "@/app/scout/scanner";
+import { cleanFound, CONTACT_SCHEMA, contactBrief } from "@/lib/scan/contact";
 
 test.describe("scout", () => {
   test("the same listing gives the same key whatever the domain or tracking junk", () => {
@@ -81,5 +82,21 @@ test.describe("scout", () => {
     expect(marketFromPlace("Marbella, Andalusia")).toBe("es-costa-del-sol");
     expect(marketFromPlace("Mayrhofen, Zillertal")).toBe("at-tyrol");
     expect(marketFromPlace("Somewhere else")).toBe("");
+  });
+
+  test("contact finder keeps only real links, emails and phones, and never the Airbnb listing", () => {
+    expect(CONTACT_SCHEMA.required).toEqual(expect.arrayContaining(["found", "approach_points", "next_steps"]));
+    const f = cleanFound([
+      { kind: "website", value: "https://priyastays.co.uk", confidence: "high", why: "" },
+      { kind: "website", value: "https://priyastays.co.uk", confidence: "high", why: "dupe" },
+      { kind: "email", value: "hello@priyastays.co.uk", confidence: "medium", why: "" },
+      { kind: "phone", value: "+44 161 555 0100", confidence: "low", why: "" },
+      { kind: "other", value: "https://www.airbnb.co.uk/rooms/123", confidence: "high", why: "" },
+      { kind: "other", value: "javascript:alert(1)", confidence: "high", why: "" },
+      { kind: "other", value: "not a link", confidence: "high", why: "" },
+    ]);
+    expect(f.map(x => x.value)).toEqual(["https://priyastays.co.uk", "hello@priyastays.co.uk", "+44 161 555 0100"]);
+    const brief = contactBrief({ host: "Priya", city: "Manchester", title: "", insights: ["Lives in Leeds", ""] });
+    expect(brief).toBe("Host name: Priya\nCity / area: Manchester\nAbout the host: Lives in Leeds");
   });
 });

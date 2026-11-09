@@ -112,8 +112,23 @@ test("screenshots fill the form with AI", async ({ page }) => {
   await expect(page.getByRole("button", { name: /✓ Weak cover photo/ })).toBeVisible();
   await expect(page.getByRole("link", { name: /Companies House/ })).toBeVisible();
   await expect(page.getByAltText("Screenshot 1")).toHaveCount(0); // scanner empties after the scan
+  await page.route("**/api/scout/contact", async r => {
+    const b = r.request().postDataJSON();
+    expect(b.host).toBe("Priya");
+    expect(b.city).toBe("Manchester");
+    await r.fulfill({ json: { result: {
+      found: [{ kind: "website", value: "https://priyastays.co.uk", confidence: "high", why: "Same photos and title" }, { kind: "instagram", value: "https://instagram.com/priyastays", confidence: "medium", why: "Linked from the website" }],
+      owner_name: "Priya Stays Ltd", best_channel: "Email from the website contact page", approach_points: ["Mention her dark living room photos"], next_steps: ["Check Companies House for the director"], summary: "Found her own website.",
+    } } });
+  });
+  await page.getByTestId("ai-contact").click();
+  await expect(page.getByTestId("ai-contact-result").getByText("Found her own website.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "https://priyastays.co.uk" })).toBeVisible();
+  await page.getByRole("button", { name: /Add to Contact and Notes/ }).click();
+  await expect(page.getByPlaceholder("facebook.com/… or email")).toHaveValue("https://priyastays.co.uk , https://instagram.com/priyastays");
   await page.getByRole("button", { name: /Save listing/ }).click();
   await expect(page.getByText("Photos are dark")).toHaveCount(0); // and resets fully after saving
+  await expect(page.getByTestId("ai-contact-result")).toHaveCount(0);
   if (process.env.SCOUT_SHOTS) await page.screenshot({ path: `${process.env.SCOUT_SHOTS}/scan.png`, fullPage: true });
 });
 
