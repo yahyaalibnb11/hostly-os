@@ -19,6 +19,22 @@ const FRAME_EDGE = 1400;
 // bigger than the file, so the budget counts base64 characters and keeps room for the rest of the request.
 const BUDGET = 3_500_000;
 const SQUEEZE: [number, number][] = [[0.6, 1300], [0.5, 1100], [0.42, 950], [0.35, 800], [0.3, 680]];
+class UploadFailed extends Error {}
+
+// Uploads each screenshot to private storage through a one-time signed link (one small request per image).
+async function uploadShots(api: Api, list: { url: string }[]): Promise<string[]> {
+  let uploads: { path: string; url: string }[];
+  try { uploads = (await api("/api/scout/scan/upload", { body: { count: list.length } })).uploads; } catch (e) { throw new UploadFailed((e as Error).message); }
+  if (!Array.isArray(uploads) || uploads.length !== list.length) throw new UploadFailed("no upload links");
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  await Promise.all(list.map(async (s, i) => {
+    const blob = await (await fetch(s.url)).blob();
+    const res = await fetch(uploads[i].url, { method: "PUT", body: blob, headers: { "content-type": "image/jpeg", "x-upsert": "true", ...(anon ? { apikey: anon } : {}) } }).catch(() => null);
+    if (!res?.ok) throw new UploadFailed(`upload ${res?.status ?? "network"}`);
+  }));
+  return uploads.map(u => u.path);
+}
+
 export const payloadSize = (list: { data: string }[]) => list.reduce((a, s) => a + s.data.length, 0);
 
 // Shrink a photo in the browser so uploads stay small and fast on mobile data.
@@ -183,14 +199,21 @@ export function ScreenshotScanner({ api, ai, onResult, toast }: { api: Api; ai: 
     if (!shots.length) return;
     setBusy(true); setStep(0); setResult(null);
     try {
-      let list = shots;
-      // Too big for one request: squeeze step by step until it fits.
-      for (const [q, edge] of SQUEEZE) {
-        if (payloadSize(list) <= BUDGET) break;
-        list = await Promise.all(shots.map(async s => ({ ...s, ...(await shrink(await (await fetch(s.url)).blob(), q, edge)) })));
+      let r;
+      try {
+        // Normal way: each screenshot goes straight to storage on its own, then the scan gets just the file names.
+        r = await api("/api/scout/scan", { body: { paths: await uploadShots(api, shots) } });
+      } catch (e) {
+        if (!(e instanceof UploadFailed)) throw e;
+        // Storage not reachable: send the images in the request itself, squeezed until they fit.
+        let list = shots;
+        for (const [q, edge] of SQUEEZE) {
+          if (payloadSize(list) <= BUDGET) break;
+          list = await Promise.all(shots.map(async s => ({ ...s, ...(await shrink(await (await fetch(s.url)).blob(), q, edge)) })));
+        }
+        if (payloadSize(list) > BUDGET) throw new Error("Too many or too large images. Remove a few and scan again.");
+        r = await api("/api/scout/scan", { body: { images: list.map(s => ({ type: s.type, data: s.data })) } });
       }
-      if (payloadSize(list) > BUDGET) throw new Error("Too many or too large images. Remove a few and scan again.");
-      const r = await api("/api/scout/scan", { body: { images: list.map(s => ({ type: s.type, data: s.data })) } });
       setResult(r.result); onResult(r.result);
       setShots([]); // ready for the next listing
       toast("✨ Form filled! Give it a quick check");

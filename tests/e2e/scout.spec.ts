@@ -218,3 +218,22 @@ test("a short recording becomes a few distinct frames for the scan", async ({ pa
   await expect(page.getByPlaceholder("Sarah")).toHaveValue("Alain");
 });
 
+
+test("screenshots upload one by one to storage, then the scan gets only their names", async ({ page }) => {
+  const puts: string[] = [];
+  let scanBody: Record<string, unknown> = {};
+  await page.route("**/api/scout/scan/upload", r => r.fulfill({ json: { uploads: [0, 1].map(i => ({ path: `m1/b/${i}.jpg`, url: `https://store.example/upload/${i}?token=t` })) } }));
+  await page.route("https://store.example/**", r => { puts.push(`${r.request().method()} ${r.request().url()}`); return r.fulfill({ json: { Key: "ok" } }); });
+  await page.route("**/api/scout/scan", r => { scanBody = r.request().postDataJSON(); return r.fulfill({ json: { result: { title: "Uploaded flat", summary: "Fine.", problems: [], checks: {} } } }); });
+  await open(page);
+  await page.unroute("**/api/scout/data");
+  await page.route("**/api/scout/data", r => r.fulfill({ json: { me: ME, members: MEMBERS, listings: LISTINGS, ai: true } }));
+  await page.reload();
+  await page.getByRole("button", { name: /Add a new listing/ }).click();
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+  await page.getByTestId("scan-files").setInputFiles([{ name: "a.png", mimeType: "image/png", buffer: png }, { name: "b.png", mimeType: "image/png", buffer: png }]);
+  await page.getByRole("button", { name: /Scan 2 images/ }).click();
+  await expect(page.getByText("Form filled")).toBeVisible();
+  expect(puts.sort()).toEqual(["PUT https://store.example/upload/0?token=t", "PUT https://store.example/upload/1?token=t"]);
+  expect(scanBody).toEqual({ paths: ["m1/b/0.jpg", "m1/b/1.jpg"] });
+});

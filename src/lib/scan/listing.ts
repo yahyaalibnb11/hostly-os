@@ -165,12 +165,14 @@ export function parseJsonReply(text: string): Record<string, any> {
   return JSON.parse(text.slice(a, b + 1));
 }
 
-export type ScanImage = { type?: string; data?: string };
+export type ScanImage = { type?: string; data?: string; url?: string };
 
 export async function scanListingImages(input: ScanImage[]) {
   const images = Array.isArray(input) ? input.slice(0, MAX_IMAGES) : [];
   if (!images.length) throw new HttpError(400, "Add at least one screenshot");
   const blocks = images.map((im, i) => {
+    // A short-lived signed link to the screenshot in storage (the normal way, no size limit on the way in).
+    if (typeof im.url === "string" && /^https:\/\//.test(im.url)) return { type: "image" as const, source: { type: "url" as const, url: im.url } };
     const type = TYPES.find(t => t === im.type);
     const data = typeof im.data === "string" ? im.data : "";
     if (!type || !data || !/^[A-Za-z0-9+/=]+$/.test(data)) throw new HttpError(400, `Screenshot ${i + 1} couldn't be read`);
