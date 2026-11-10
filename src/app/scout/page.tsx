@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { AdminLeads, Watermark } from "./admin";
 import { ListingForm } from "./form";
 import { Dashboard, Guide, Markets, Pitches, Sheet, Team } from "./pages";
 import { Avatar, Logo, Toast, useConfetti, type Listing, type Member } from "./ui";
@@ -13,7 +14,7 @@ const getPass = () => { try { return localStorage.getItem(PASS_KEY); } catch { r
 const setPass = (v: string | null) => { try { if (v) localStorage.setItem(PASS_KEY, v); else localStorage.removeItem(PASS_KEY); } catch { /* private mode */ } };
 
 const TABS = [
-  ["home", "🏠", "Dashboard"], ["add", "➕", "New listing"], ["sheet", "📋", "Sheet"], ["pitches", "✉️", "Pitches"],
+  ["home", "🏠", "Dashboard"], ["add", "➕", "New listing"], ["sheet", "📋", "Sheet"], ["leads", "🎯", "Leads"], ["pitches", "✉️", "Pitches"],
   ["markets", "🌍", "Markets"], ["guide", "📘", "Guide"], ["team", "👥", "Team"],
 ] as const;
 type Tab = typeof TABS[number][0];
@@ -59,10 +60,14 @@ export default function ScoutPage() {
   if (!data) return <main className="scout-bg flex items-center justify-center"><Logo size={64} className="scout-float" /></main>;
 
   const { me, members, listings, ai } = data;
+  const tabs = TABS.filter(t => t[0] !== "leads" || me.is_admin);
+  // Students can't select, copy, right-click or print the leads; Yahya can.
+  const guard = (e: React.SyntheticEvent) => { if (!me.is_admin && !(e.target as HTMLElement).closest?.("input, textarea")) e.preventDefault(); };
   const myToday = listings.filter(l => l.added_by === me.id && new Date(l.created_at).toDateString() === new Date().toDateString()).length;
 
   return (
-    <main className="scout-bg pb-24 md:pb-10">
+    <main className={`scout-bg pb-24 md:pb-10 ${me.is_admin ? "" : "scout-locked"}`} onCopy={guard} onCut={guard} onContextMenu={guard} onDragStart={guard}>
+      {!me.is_admin && <Watermark name={me.name} />}
       <div className="mx-auto max-w-7xl px-4 py-4 md:px-6">
         <header className="mb-5 flex items-center justify-between gap-3">
           <button onClick={() => go("home")} className="flex items-center gap-2.5 text-left">
@@ -77,7 +82,7 @@ export default function ScoutPage() {
         </header>
 
         <nav className="mb-5 hidden gap-1.5 md:flex">
-          {TABS.map(([k, e, l]) => (
+          {tabs.map(([k, e, l]) => (
             <button key={k} onClick={() => go(k)} className={`relative rounded-xl px-4 py-2 text-sm font-bold transition ${tab === k ? "bg-white text-night shadow-lg" : "text-bone/80 hover:bg-white/5"}`}>{e} {k === "add" && editing ? "Edit listing" : l}</button>
           ))}
         </nav>
@@ -97,6 +102,7 @@ export default function ScoutPage() {
             if (!confirm(`Remove "${l.title || l.link}" from the sheet? (It stays safe in the database.)`)) return;
             try { await api(`/api/scout/listings?id=${l.id}`, { method: "DELETE" }); setData(d => d && ({ ...d, listings: d.listings.filter(x => x.id !== l.id) })); toast("Listing removed"); } catch (e) { toast((e as Error).message, "err"); }
           }} />}
+          {tab === "leads" && me.is_admin && <AdminLeads members={members} listings={listings} onOpen={open} />}
           {tab === "pitches" && <Pitches api={api} members={members} listings={listings} onOpen={open} toast={toast} onChanged={l => { upsert(l); if (l.status === "won") confetti(true); }} />}
           {tab === "markets" && <Markets listings={listings} />}
           {tab === "guide" && <Guide />}
@@ -105,7 +111,7 @@ export default function ScoutPage() {
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 flex justify-around border-t border-white/10 bg-night/90 px-1 py-1.5 backdrop-blur md:hidden">
-        {TABS.filter(t => t[0] !== "team").map(([k, e, l]) => (
+        {tabs.filter(t => t[0] !== "team" && (t[0] !== "markets" || !me.is_admin)).map(([k, e, l]) => (
           <button key={k} onClick={() => go(k)} className={`flex flex-col items-center rounded-lg px-2 py-1 text-[10px] font-semibold ${tab === k ? "text-door" : "text-mist"}`}>
             <span className={`text-lg transition-transform ${tab === k ? "scale-125" : ""}`}>{e}</span>{l.split(" ").pop()}
           </button>

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { autoProblems, buildPitch, linkKey, scoreListing, solutionsText } from "@/lib/scout/catalog";
-import { hashPin, pinMatches } from "@/lib/scout/server";
+import { autoProblems, buildPitch, hasRealContact, leadReadiness, linkKey, scoreListing, solutionsText } from "@/lib/scout/catalog";
+import { hashPin, pinMatches, visibleTo } from "@/lib/scout/server";
 import { CHECKS, marketFromPlace, pricesFromQuotes, problemsFromScan, parseJsonReply, SCAN_SCHEMA, schemaRefused } from "@/lib/scan/listing";
 import { contactLinks, pickFrames } from "@/app/scout/scanner";
 import { cleanFound, cleanPlatforms, CONTACT_SCHEMA, contactBrief } from "@/lib/scan/contact";
@@ -127,4 +127,27 @@ test.describe("scout", () => {
     expect(SCAN_SCHEMA.required).toEqual(expect.arrayContaining(["description_text", "contact_clues", "business_details", "host_other_listings", "findability"]));
     expect(contactBrief({ host: "Ana", business: "Casa Sol SL, B12345678", other_listings: ["Loft · Málaga"] })).toBe("Host name: Ana\nBusiness details on the listing: Casa Sol SL, B12345678\nHost's other listings: Loft · Málaga");
   });
+});
+
+test("a lead is ready only with a real contact, host name, problems and a pitch", () => {
+  expect(hasRealContact("sam@stays.co.uk")).toBe(true);
+  expect(hasRealContact("+44 7700 900123")).toBe(true);
+  expect(hasRealContact("samstays.com")).toBe(true);
+  expect(hasRealContact("not found")).toBe(false);
+  expect(hasRealContact("")).toBe(false);
+  const full = { contact: "https://facebook.com/samstays", host_name: "Sam", problem_count: 3, pitch: "Hi Sam" };
+  expect(leadReadiness(full)).toEqual({ complete: true, missing: [] });
+  expect(leadReadiness({ ...full, contact: "none yet", pitch: "" }).missing).toEqual(["Contact", "Pitch"]);
+});
+
+test("students only get the score fields of teammates' listings", () => {
+  const row = { id: "l1", added_by: "m2", market: "uk-manchester", score: 70, grade: "hot", status: "new", problem_count: 5, created_at: "x", link: "https://airbnb.com/rooms/1", contact: "a@b.com", host_name: "Sam", title: "Flat", pitch: "Hi" };
+  const student = { id: "m1", name: "Aon", is_admin: false, daily_goal: 10 };
+  const shared = visibleTo(student, row);
+  expect(shared).not.toHaveProperty("contact");
+  expect(shared).not.toHaveProperty("link");
+  expect(shared).not.toHaveProperty("title");
+  expect(shared).toMatchObject({ score: 70, added_by: "m2" });
+  expect(visibleTo({ ...student, id: "m2" }, row)).toHaveProperty("contact", "a@b.com");
+  expect(visibleTo({ ...student, is_admin: true }, row)).toHaveProperty("contact", "a@b.com");
 });

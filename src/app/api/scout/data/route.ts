@@ -1,6 +1,6 @@
 import { adminClient, errorResponse, HttpError } from "@/lib/server/auth";
 import { aiReady } from "@/lib/server/env";
-import { LISTING_COLS, requireScout } from "@/lib/scout/server";
+import { LISTING_COLS, requireScout, visibleTo } from "@/lib/scout/server";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,7 @@ export async function GET(req: Request) {
     return Response.json({
       me, ai: aiReady(),
       members: (members.data ?? []).map(({ pin_hash, ...m }) => ({ ...m, has_pin: Boolean(pin_hash) })),
-      listings: listings.data ?? [],
+      listings: (listings.data ?? []).map(l => visibleTo(me, l)),
     }, { headers: { "cache-control": "no-store" } });
   } catch (e) {
     return errorResponse(e);

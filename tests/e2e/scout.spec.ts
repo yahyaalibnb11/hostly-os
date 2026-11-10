@@ -74,15 +74,38 @@ test("numbers and ticks build the score, solutions and pitch, then save", async 
   expect(saved[0].problems).toEqual(["bad_photos", "empty_calendar"]);
 });
 
-test("the sheet filters and downloads", async ({ page }) => {
+test("students see only their own listings and can't download", async ({ page }) => {
   await open(page);
   await page.getByRole("button", { name: /Sheet/ }).first().click();
-  await expect(page.getByRole("table").getByText("Zillertal chalet")).toBeVisible();
-  await page.locator("select").first().selectOption("Spain");
+  await expect(page.getByText("My listings")).toBeVisible();
+  await expect(page.getByRole("table").getByText("Marbella sea view flat")).toBeVisible();
   await expect(page.getByRole("table").getByText("Zillertal chalet")).toHaveCount(0);
+  await expect(page.getByText("Only Yahya can download")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Download Excel/ })).toHaveCount(0);
+  await expect(page.getByRole("table").getByTestId("missing")).toContainText("Contact");
+  await expect(page.getByTestId("watermark")).toBeAttached();
+  await expect(page.getByRole("button", { name: /Leads/ })).toHaveCount(0);
+});
+
+test("Yahya sees ready and incomplete leads and downloads them", async ({ page }) => {
+  const admin = MEMBERS[0];
+  const rows = [{ ...LISTINGS[0], contact: "sam@samstays.co.uk" }, LISTINGS[1], LISTINGS[2]];
+  await page.route("**/api/scout/data", r => r.fulfill({ json: { me: admin, members: MEMBERS, listings: rows, ai: false } }));
+  await page.addInitScript(() => localStorage.setItem("hostly-scout-pass", "test.pass"));
+  await page.goto("/scout");
+  await expect(page.getByTestId("watermark")).toHaveCount(0);
+  await page.getByRole("button", { name: /Leads/ }).first().click();
+  const box = page.getByTestId("admin-leads");
+  await expect(box.getByText("sam@samstays.co.uk")).toBeVisible();
+  await expect(box.getByText("Marbella sea view flat")).toHaveCount(0);
   const dl = page.waitForEvent("download");
-  await page.getByRole("button", { name: /Download Excel \(1\)/ }).click();
-  expect((await dl).suggestedFilename()).toMatch(/^hostly-scout-.*\.csv$/);
+  await page.getByTestId("admin-download").click();
+  expect((await dl).suggestedFilename()).toMatch(/^hostly-ready-leads-.*\.csv$/);
+  await box.getByRole("button", { name: /Incomplete/ }).first().click();
+  await expect(box.getByText("Marbella sea view flat")).toBeVisible();
+  await expect(box.getByText(/Missing: Contact/).first()).toBeVisible();
+  await page.getByRole("button", { name: /Sheet/ }).first().click();
+  await expect(page.getByRole("button", { name: /Download Excel \(3\)/ })).toBeVisible();
 });
 
 test("screenshots fill the form with AI", async ({ page }) => {

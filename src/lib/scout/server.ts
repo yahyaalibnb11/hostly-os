@@ -10,6 +10,14 @@ export type ScoutMember = { id: string; name: string; is_admin: boolean; daily_g
 
 export const LISTING_COLS = "id, link, link_key, market, host_name, host_listings, property_type, title, rating, reviews, currency, weekday_price, weekend_price, min_nights, photos, response_rate, managed_by, licence_number, problems, custom_problems, problem_count, solutions, score, grade, pitch_subject, pitch, status, contact, notes, added_by, created_at, updated_at";
 
+// Students see their own listings in full. Of their teammates' listings they get only these fields
+// (enough for the leaderboard and market counts), so nobody can copy the whole lead list.
+const SHARED_COLS = ["id", "market", "score", "grade", "status", "problem_count", "added_by", "created_at"] as const;
+export function visibleTo(me: ScoutMember, l: Record<string, unknown>) {
+  if (me.is_admin || l.added_by === me.id) return l;
+  return Object.fromEntries(SHARED_COLS.map(k => [k, l[k]]));
+}
+
 const DAY = 86_400_000;
 const PASS_DAYS = 30;
 const MAX_TRIES = 5;

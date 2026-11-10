@@ -26,7 +26,10 @@ export async function POST(req: Request) {
       existing = data;
     }
 
-    // A status-only update (from the pipeline buttons) can be done by anyone on the team.
+    // Only the person who added a listing, or Yahya, can see or change it.
+    if (existing && existing.added_by !== me.id && !me.is_admin) throw new HttpError(403, "Only the person who added this listing (or Yahya) can change it");
+
+    // A status-only update (from the pipeline buttons).
     if (existing && Object.keys(b).every(k => ["id", "status", "pitch", "pitch_subject", "contact", "notes"].includes(k))) {
       const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
       if ("status" in b) { if (!STATUSES.some(s => s.id === b.status)) throw new HttpError(400, "Unknown status"); patch.status = b.status; }
@@ -38,8 +41,6 @@ export async function POST(req: Request) {
       if (error) throw new HttpError(400, error.message);
       return Response.json({ listing: data });
     }
-    if (existing && existing.added_by !== me.id && !me.is_admin) throw new HttpError(403, "Only the person who added this listing (or Yahya) can change it");
-
     const link = str("link", 1000);
     const key = linkKey(link);
     if (!key) throw new HttpError(400, "That link doesn't look right. Paste the full Airbnb / Vrbo / Booking link.");

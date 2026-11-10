@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { COUNTRIES, GRADE, MANAGED_BY, MARKETS, marketById, problemById, STATUSES } from "@/lib/scout/catalog";
+import { COUNTRIES, GRADE, leadReadiness, MANAGED_BY, MARKETS, marketById, problemById, STATUSES } from "@/lib/scout/catalog";
 import { ago, Avatar, Card, CountUp, H, Ring, startOfDay, startOfWeek, type Api, type Listing, type Member } from "./ui";
 
 const QUOTES = [
@@ -11,8 +11,8 @@ const QUOTES = [
   "Today's work is tomorrow's recurring income. Let's go! 🚀",
   "Every big company started with one listing.",
 ];
-const statusOf = (id: string) => STATUSES.find(s => s.id === id) ?? STATUSES[0];
-const gradeBadge = (g: string) => g === "hot" ? "bg-door text-night" : g === "warm" ? "bg-door-hi/90 text-night" : "bg-slate-600 text-white";
+export const statusOf = (id: string) => STATUSES.find(s => s.id === id) ?? STATUSES[0];
+export const gradeBadge = (g: string) => g === "hot" ? "bg-door text-night" : g === "warm" ? "bg-door-hi/90 text-night" : "bg-slate-600 text-white";
 
 export function useStats(listings: Listing[], members: Member[]) {
   return useMemo(() => {
@@ -44,7 +44,7 @@ export function Dashboard({ me, members, listings, onOpen, onAdd }: { me: Member
   const left = Math.max(0, goal - (mine?.today ?? 0));
   const quote = QUOTES[new Date().getDate() % QUOTES.length];
   const nameOf = (id: string) => members.find(m => m.id === id)?.name ?? "?";
-  const hot = listings.filter(l => ["new", "drafted"].includes(l.status)).sort((a, b) => b.score - a.score).slice(0, 6);
+  const hot = listings.filter(l => l.link && ["new", "drafted"].includes(l.status)).sort((a, b) => b.score - a.score).slice(0, 6);
   const byCountry = COUNTRIES.map(c => ({ c, n: listings.filter(l => marketById(l.market)?.country === c).length })).filter(x => x.n || x.c !== "Other");
   const maxWeek = Math.max(1, ...st.per.map(p => p.week));
 
@@ -196,22 +196,22 @@ export function Sheet({ me, members, listings, onOpen, onDelete }: { me: Member;
   const nameOf = (id: string) => members.find(m => m.id === id)?.name ?? "?";
   const rows = useMemo(() => {
     const t = q.trim().toLowerCase();
-    return listings.filter(l =>
+    return listings.filter(l => l.link && (me.is_admin || l.added_by === me.id)).filter(l =>
       (!t || [l.title, l.host_name, l.link, l.notes].some(x => String(x ?? "").toLowerCase().includes(t))) &&
       (!country || marketById(l.market)?.country === country) && (!market || l.market === market) &&
       (!by || l.added_by === by) && (!grade || l.grade === grade) && (!status || l.status === status),
     ).sort((a, b) => sort === "score" ? b.score - a.score : +new Date(b.created_at) - +new Date(a.created_at));
-  }, [listings, q, country, market, by, grade, status, sort]);
+  }, [listings, me, q, country, market, by, grade, status, sort]);
   const sel = "scout-input w-auto text-xs";
 
   return (
     <Card>
-      <H right={<button onClick={() => exportCsv(rows, members)} className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-black text-emerald-950 transition hover:brightness-110">⬇️ Download Excel ({rows.length})</button>}>📋 All listings</H>
+      <H right={me.is_admin ? <button onClick={() => exportCsv(rows, members)} className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-black text-emerald-950 transition hover:brightness-110">⬇️ Download Excel ({rows.length})</button> : <span className="text-xs text-mist/70">🔒 Only Yahya can download</span>}>{me.is_admin ? "📋 All listings" : "📋 My listings"}</H>
       <div className="mb-3 flex flex-wrap gap-2">
         <input className="scout-input max-w-xs text-xs" placeholder="🔍 Title, host, link…" value={q} onChange={e => setQ(e.target.value)} />
         <select className={sel} value={country} onChange={e => { setCountry(e.target.value); setMarket(""); }}><option value="">All countries</option>{COUNTRIES.map(c => <option key={c}>{c}</option>)}</select>
         <select className={sel} value={market} onChange={e => setMarket(e.target.value)}><option value="">All markets</option>{MARKETS.filter(m => !country || m.country === country).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
-        <select className={sel} value={by} onChange={e => setBy(e.target.value)}><option value="">All members</option>{members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
+        {me.is_admin && <select className={sel} value={by} onChange={e => setBy(e.target.value)}><option value="">All members</option>{members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select>}
         <select className={sel} value={grade} onChange={e => setGrade(e.target.value)}><option value="">All leads</option>{Object.entries(GRADE).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
         <select className={sel} value={status} onChange={e => setStatus(e.target.value)}><option value="">All statuses</option>{STATUSES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select>
         <select className={sel} value={sort} onChange={e => setSort(e.target.value as "score" | "date")}><option value="score">By score</option><option value="date">Newest first</option></select>
@@ -220,7 +220,7 @@ export function Sheet({ me, members, listings, onOpen, onDelete }: { me: Member;
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full text-left text-sm">
           <thead className="text-xs uppercase tracking-wider text-mist/70">
-            <tr>{["Score", "Listing", "Market", "Host", "Rating", "Weekday / Weekend", "Problems", "By", "Status", ""].map(h => <th key={h} className="px-2 py-2 font-semibold">{h}</th>)}</tr>
+            <tr>{["Score", "Listing", "Market", "Host", "Rating", "Weekday / Weekend", "Problems", "By", "Ready?", "Status", ""].map(h => <th key={h} className="px-2 py-2 font-semibold">{h}</th>)}</tr>
           </thead>
           <tbody>
             {rows.map((l, i) => (
@@ -233,6 +233,7 @@ export function Sheet({ me, members, listings, onOpen, onDelete }: { me: Member;
                 <td className="px-2 text-xs tabular-nums">{l.weekday_price ?? "—"} / {l.weekend_price ?? "—"} {l.currency}</td>
                 <td className="px-2 text-center font-bold">{l.problem_count}</td>
                 <td className="px-2 text-xs">{nameOf(l.added_by)}</td>
+                <td className="px-2"><Ready l={l} /></td>
                 <td className="px-2"><span className={`rounded-full px-2 py-0.5 text-[11px] font-bold text-white ${statusOf(l.status).color}`}>{statusOf(l.status).label}</span></td>
                 <td className="px-2 text-right">{(l.added_by === me.id || me.is_admin) && <button title="Remove" onClick={e => { e.stopPropagation(); onDelete(l); }} className="rounded px-2 py-1 text-mist/70 hover:bg-red-500/20 hover:text-red-300">🗑</button>}</td>
               </tr>
@@ -247,12 +248,21 @@ export function Sheet({ me, members, listings, onOpen, onDelete }: { me: Member;
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-bold">{l.title || l.link}</div>
               <div className="truncate text-xs text-mist">{marketById(l.market)?.name} · {l.problem_count} problems · {nameOf(l.added_by)} · {statusOf(l.status).label}</div>
+              <div className="mt-1"><Ready l={l} /></div>
             </div>
           </button>
         ))}
       </div>
     </Card>
   );
+}
+
+// ✅ ready for outreach, or what is still missing.
+export function Ready({ l }: { l: Listing }) {
+  const r = leadReadiness(l);
+  return r.complete
+    ? <span data-testid="ready" className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-bold text-emerald-300">✅ Ready</span>
+    : <span data-testid="missing" title={`Missing: ${r.missing.join(", ")}`} className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold text-amber-300">⚠️ Missing: {r.missing.join(", ")}</span>;
 }
 
 // ---------------- Pitches ----------------

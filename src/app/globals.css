@@ -27,6 +27,9 @@ button, input, select, textarea { font: inherit; }
 .scout-bg { background: radial-gradient(900px 520px at 50% 115%, rgba(255,179,71,.16), transparent 65%), radial-gradient(1000px 500px at 0% -10%, rgba(35,44,59,.9), transparent 60%), #0B0F16; min-height: 100vh; color: #E9E4DA; font-family: "Instrument Sans", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
 .scout-bg h1, .scout-bg h2, .scout-bg h3, .scout-display { font-family: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif; letter-spacing: -.02em; }
 .scout-bg ::selection { background: #FFB347; color: #0B0F16; }
+.scout-locked { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.scout-locked input, .scout-locked textarea, .scout-locked select { -webkit-user-select: text; user-select: text; }
+@media print { .scout-locked { display: none !important; } }
 .scout-card { background: #121824; border: 1px solid #232C3B; border-radius: 18px; }
 .scout-input { width: 100%; min-width: 0; border-radius: 10px; background: #0B0F16; border: 1px solid #232C3B; padding: .55rem .75rem; color: #E9E4DA; transition: border-color .2s, box-shadow .2s; }
 .scout-input:focus { outline: none; border-color: #FFB347; box-shadow: 0 0 0 3px rgba(255,179,71,.22); }

@@ -173,3 +173,17 @@ export function buildPitch(p: PitchInput) {
 }
 
 export const DAILY_GOAL_DEFAULT = 10;
+
+// A contact counts only if it is something you can actually reach: an email, a link, a website or a phone number.
+export const hasRealContact = (s?: string | null) =>
+  /@\w|https?:\/\/|www\.|\b[a-z0-9-]+\.(com|co\.uk|uk|es|at|de|eu|net|org|io|me|info|co|pt|fr|it)\b|\+?\d[\d\s().-]{6,}\d/i.test(String(s ?? ""));
+
+// A lead is ready for outreach when it has a real contact, the host's name, at least one problem and a pitch.
+export function leadReadiness(l: Record<string, unknown>) {
+  const missing: string[] = [];
+  if (!hasRealContact(l.contact as string)) missing.push("Contact");
+  if (!String(l.host_name ?? "").trim()) missing.push("Host name");
+  if (!(Number(l.problem_count) > 0)) missing.push("Problems");
+  if (!String(l.pitch ?? "").trim()) missing.push("Pitch");
+  return { complete: missing.length === 0, missing };
+}
