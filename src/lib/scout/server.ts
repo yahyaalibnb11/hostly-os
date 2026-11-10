@@ -1,6 +1,7 @@
 import { createHmac, randomBytes, scryptSync } from "crypto";
 import { adminClient, HttpError, safeEqual } from "@/lib/server/auth";
 import { env, hostlyReady } from "@/lib/server/env";
+import { leadReadiness } from "@/lib/scout/catalog";
 
 // Hostly Scout sign-in: each team member picks their name and types a 6-digit PIN.
 // The server checks the PIN against a scrypt hash and hands back a signed pass (valid 30 days).
@@ -8,14 +9,27 @@ import { env, hostlyReady } from "@/lib/server/env";
 
 export type ScoutMember = { id: string; name: string; is_admin: boolean; daily_goal: number };
 
-export const LISTING_COLS = "id, link, link_key, market, host_name, host_listings, property_type, title, rating, reviews, currency, weekday_price, weekend_price, min_nights, photos, response_rate, managed_by, licence_number, problems, custom_problems, problem_count, solutions, score, grade, pitch_subject, pitch, status, contact, notes, added_by, created_at, updated_at";
+export const LISTING_COLS = "id, link, link_key, market, host_name, host_listings, property_type, title, rating, reviews, currency, weekday_price, weekend_price, min_nights, photos, response_rate, managed_by, licence_number, problems, custom_problems, problem_count, solutions, score, grade, pitch_subject, pitch, status, contact, notes, added_by, assigned_to, created_at, updated_at";
 
-// Students see their own listings in full. Of their teammates' listings they get only these fields
-// (enough for the leaderboard and market counts), so nobody can copy the whole lead list.
+// Who sees what:
+// - Yahya (admin) sees everything.
+// - The member a complete lead is assigned to (for outreach) sees it in full.
+// - A student sees their own listings in full while they work on them. Once a lead is complete
+//   (real contact, host name, problems, pitch) it is locked: the contact and notes are hidden from them
+//   and only Yahya or the assigned member can change it.
+// - Of teammates' listings a student gets only these fields (enough for the leaderboard and market counts).
 const SHARED_COLS = ["id", "market", "score", "grade", "status", "problem_count", "added_by", "created_at"] as const;
+export const isLocked = (l: Record<string, unknown>) => leadReadiness(l).complete;
 export function visibleTo(me: ScoutMember, l: Record<string, unknown>) {
-  if (me.is_admin || l.added_by === me.id) return l;
-  return Object.fromEntries(SHARED_COLS.map(k => [k, l[k]]));
+  const ready = leadReadiness(l).complete;
+  if (me.is_admin || (l.assigned_to && l.assigned_to === me.id)) return { ...l, ready };
+  if (l.added_by === me.id) return ready ? { ...l, ready, locked: true, contact: "🔒 Handed to Yahya", notes: "" } : { ...l, ready };
+  return { ...Object.fromEntries(SHARED_COLS.map(k => [k, l[k]])), ready };
+}
+
+// Activity log: who did what, when. Never blocks the action if the log write fails.
+export async function logActivity(memberId: string, action: string, listingId?: string | null, detail = "") {
+  try { await adminClient().from("scout_activity").insert({ member_id: memberId, action, listing_id: listingId || null, detail: detail.slice(0, 300) }); } catch { /* the log must never break the app */ }
 }
 
 const DAY = 86_400_000;
@@ -73,5 +87,6 @@ export async function signIn(name: string, pin: string) {
     throw new HttpError(401, "Wrong name or PIN");
   }
   await db.from("scout_members").update({ failed_attempts: 0, locked_until: null }).eq("id", m.id);
+  await logActivity(m.id, "sign_in");
   return makePass(m.id);
 }

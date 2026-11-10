@@ -108,6 +108,37 @@ test("Yahya sees ready and incomplete leads and downloads them", async ({ page }
   await expect(page.getByRole("button", { name: /Download Excel \(3\)/ })).toBeVisible();
 });
 
+test("Yahya hands a complete lead to a member and sees the activity log", async ({ page }) => {
+  const admin = MEMBERS[0];
+  const ready = { ...LISTINGS[0], contact: "sam@samstays.co.uk", assigned_to: null };
+  const posted: Record<string, unknown>[] = [];
+  await page.route("**/api/scout/data", r => r.fulfill({ json: { me: admin, members: MEMBERS, listings: [ready, LISTINGS[1]], ai: false } }));
+  await page.route("**/api/scout/activity", r => r.request().method() === "GET"
+    ? r.fulfill({ json: { activity: [{ id: 1, member_id: "m2", action: "open", detail: "", at: now, scout_listings: { title: "Cosy 2BR near Old Trafford" } }, { id: 2, member_id: "m1", action: "sign_in", detail: "", at: now }] } })
+    : r.fulfill({ json: { ok: true } }));
+  await page.route("**/api/scout/listings", async r => { const b = r.request().postDataJSON(); posted.push(b); await r.fulfill({ json: { listing: { ...ready, assigned_to: b.assigned_to } } }); });
+  await page.addInitScript(() => localStorage.setItem("hostly-scout-pass", "test.pass"));
+  await page.goto("/scout");
+  await page.getByRole("button", { name: /Leads/ }).first().click();
+  await expect(page.getByTestId("activity")).toContainText("Eassa");
+  await expect(page.getByTestId("activity")).toContainText("opened Cosy 2BR near Old Trafford");
+  await page.getByTestId("assign").selectOption("m3");
+  await expect(page.getByText("Handed to Shahzaib")).toBeVisible();
+  expect(posted[0]).toEqual({ id: "l1", assigned_to: "m3" });
+});
+
+test("a student's complete lead shows as locked and can't be removed", async ({ page }) => {
+  const mine = { ...LISTINGS[1], contact: "🔒 Handed to Yahya", host_name: "Ana", ready: true, locked: true };
+  await page.route("**/api/scout/data", r => r.fulfill({ json: { me: ME, members: MEMBERS, listings: [LISTINGS[0], mine], ai: false } }));
+  await page.route("**/api/scout/activity", r => r.fulfill({ json: { ok: true } }));
+  await page.addInitScript(() => localStorage.setItem("hostly-scout-pass", "test.pass"));
+  await page.goto("/scout");
+  await expect(page.getByText("Ranked by complete leads this week")).toBeVisible();
+  await page.getByRole("button", { name: /Sheet/ }).first().click();
+  await expect(page.getByRole("table").getByTestId("locked")).toBeVisible();
+  await expect(page.getByRole("table").getByTitle("Remove")).toHaveCount(0);
+});
+
 test("screenshots fill the form with AI", async ({ page }) => {
   await page.route("**/api/scout/scan", async r => {
     const b = r.request().postDataJSON();

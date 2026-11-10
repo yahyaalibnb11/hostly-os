@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { autoProblems, buildPitch, hasRealContact, leadReadiness, linkKey, scoreListing, solutionsText } from "@/lib/scout/catalog";
-import { hashPin, pinMatches, visibleTo } from "@/lib/scout/server";
+import { hashPin, isLocked, pinMatches, visibleTo } from "@/lib/scout/server";
 import { CHECKS, marketFromPlace, pricesFromQuotes, problemsFromScan, parseJsonReply, SCAN_SCHEMA, schemaRefused } from "@/lib/scan/listing";
 import { contactLinks, pickFrames } from "@/app/scout/scanner";
 import { cleanFound, cleanPlatforms, CONTACT_SCHEMA, contactBrief } from "@/lib/scan/contact";
@@ -148,6 +148,17 @@ test("students only get the score fields of teammates' listings", () => {
   expect(shared).not.toHaveProperty("link");
   expect(shared).not.toHaveProperty("title");
   expect(shared).toMatchObject({ score: 70, added_by: "m2" });
-  expect(visibleTo({ ...student, id: "m2" }, row)).toHaveProperty("contact", "a@b.com");
+  expect(shared).toHaveProperty("ready", true);
   expect(visibleTo({ ...student, is_admin: true }, row)).toHaveProperty("contact", "a@b.com");
+});
+
+test("a complete lead is locked for the student who found it, open for the assigned member", () => {
+  const row = { id: "l1", added_by: "m2", assigned_to: null as string | null, contact: "a@b.com", host_name: "Sam", problem_count: 3, pitch: "Hi", notes: "Owner: Sam" };
+  const owner = { id: "m2", name: "Eassa", is_admin: false, daily_goal: 10 };
+  const locked = visibleTo(owner, row);
+  expect(locked).toMatchObject({ locked: true, contact: "🔒 Handed to Yahya", notes: "" });
+  expect(isLocked(row)).toBe(true);
+  expect(visibleTo(owner, { ...row, contact: "" })).toMatchObject({ contact: "", ready: false });
+  expect(visibleTo(owner, { ...row, contact: "" })).not.toHaveProperty("locked");
+  expect(visibleTo({ ...owner, id: "m3" }, { ...row, assigned_to: "m3" })).toHaveProperty("contact", "a@b.com");
 });

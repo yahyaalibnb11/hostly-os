@@ -1,6 +1,6 @@
 import { adminClient, errorResponse, HttpError } from "@/lib/server/auth";
 import { linkKey, marketById, MANAGED_BY, PROPERTY_TYPES, scoreListing, STATUSES } from "@/lib/scout/catalog";
-import { LISTING_COLS, requireScout } from "@/lib/scout/server";
+import { isLocked, LISTING_COLS, logActivity, requireScout, visibleTo } from "@/lib/scout/server";
 
 export const dynamic = "force-dynamic";
 
@@ -19,15 +19,27 @@ export async function POST(req: Request) {
     };
 
     const id = str("id", 40);
-    let existing: { id: string; added_by: string } | null = null;
+    let existing: { id: string; added_by: string; assigned_to: string | null; contact: string | null; host_name: string | null; problem_count: number; pitch: string } | null = null;
     if (id) {
-      const { data } = await db.from("scout_listings").select("id, added_by").eq("id", id).is("deleted_at", null).maybeSingle();
+      const { data } = await db.from("scout_listings").select("id, added_by, assigned_to, contact, host_name, problem_count, pitch").eq("id", id).is("deleted_at", null).maybeSingle();
       if (!data) throw new HttpError(404, "Listing not found");
       existing = data;
     }
 
-    // Only the person who added a listing, or Yahya, can see or change it.
-    if (existing && existing.added_by !== me.id && !me.is_admin) throw new HttpError(403, "Only the person who added this listing (or Yahya) can change it");
+    const assignee = Boolean(existing?.assigned_to && existing.assigned_to === me.id);
+    // Yahya hands a complete lead to a member for outreach.
+    if (existing && "assigned_to" in b) {
+      if (!me.is_admin) throw new HttpError(403, "Only Yahya can hand out leads");
+      const to = typeof b.assigned_to === "string" && b.assigned_to ? b.assigned_to : null;
+      const { data, error } = await db.from("scout_listings").update({ assigned_to: to, updated_at: new Date().toISOString() }).eq("id", existing.id).select(LISTING_COLS).single();
+      if (error) throw new HttpError(400, error.message);
+      await logActivity(me.id, "assign", existing.id, to ?? "nobody");
+      return Response.json({ listing: visibleTo(me, data) });
+    }
+    // Only the person who added a listing, the member it is assigned to, or Yahya can change it.
+    if (existing && existing.added_by !== me.id && !assignee && !me.is_admin) throw new HttpError(403, "Only the person who added this listing (or Yahya) can change it");
+    // A complete lead is locked for the student who found it.
+    if (existing && !me.is_admin && !assignee && isLocked(existing)) throw new HttpError(403, "This lead is complete and locked 🔒 Yahya takes it from here.");
 
     // A status-only update (from the pipeline buttons).
     if (existing && Object.keys(b).every(k => ["id", "status", "pitch", "pitch_subject", "contact", "notes"].includes(k))) {
@@ -39,7 +51,8 @@ export async function POST(req: Request) {
       if ("notes" in b) patch.notes = str("notes", 3000);
       const { data, error } = await db.from("scout_listings").update(patch).eq("id", existing.id).select(LISTING_COLS).single();
       if (error) throw new HttpError(400, error.message);
-      return Response.json({ listing: data });
+      await logActivity(me.id, "status" in b ? "status" : "edit", existing.id, "status" in b ? String(b.status) : Object.keys(patch).filter(k => k !== "updated_at").join(", "));
+      return Response.json({ listing: visibleTo(me, data) });
     }
     const link = str("link", 1000);
     const key = linkKey(link);
@@ -88,7 +101,8 @@ export async function POST(req: Request) {
       }
       throw new HttpError(400, error.message);
     }
-    return Response.json({ listing: data });
+    await logActivity(me.id, existing ? "edit" : "add", data.id, data.title ?? "");
+    return Response.json({ listing: visibleTo(me, data) });
   } catch (e) {
     return errorResponse(e);
   }
@@ -100,11 +114,13 @@ export async function DELETE(req: Request) {
     const me = await requireScout(req);
     const id = new URL(req.url).searchParams.get("id") || "";
     const db = adminClient();
-    const { data } = await db.from("scout_listings").select("id, added_by").eq("id", id).is("deleted_at", null).maybeSingle();
+    const { data } = await db.from("scout_listings").select("id, added_by, contact, host_name, problem_count, pitch").eq("id", id).is("deleted_at", null).maybeSingle();
     if (!data) throw new HttpError(404, "Listing not found");
     if (data.added_by !== me.id && !me.is_admin) throw new HttpError(403, "Only the person who added this listing (or Yahya) can remove it");
+    if (!me.is_admin && isLocked(data)) throw new HttpError(403, "This lead is complete and locked 🔒 Only Yahya can remove it.");
     const { error } = await db.from("scout_listings").update({ deleted_at: new Date().toISOString() }).eq("id", id);
     if (error) throw new HttpError(400, error.message);
+    await logActivity(me.id, "delete", id);
     return Response.json({ ok: true });
   } catch (e) {
     return errorResponse(e);

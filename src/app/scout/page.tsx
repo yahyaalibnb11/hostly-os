@@ -52,7 +52,8 @@ export default function ScoutPage() {
   }, [load, token]);
 
   const go = (t: Tab) => { setTab(t); if (t !== "add") setEditing(null); window.scrollTo({ top: 0, behavior: "smooth" }); };
-  const open = (l: Listing) => { setEditing(l); setTab("add"); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const log = useCallback((action: string, listing_id?: string, detail = "") => { api("/api/scout/activity", { body: { action, listing_id, detail } }).catch(() => {}); }, [api]);
+  const open = (l: Listing) => { log("open", l.id, l.title ?? ""); setEditing(l); setTab("add"); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const upsert = (l: Listing) => setData(d => d && ({ ...d, listings: d.listings.some(x => x.id === l.id) ? d.listings.map(x => x.id === l.id ? l : x) : [l, ...d.listings] }));
 
   if (!ready) return <main className="scout-bg" />;
@@ -98,11 +99,11 @@ export default function ScoutPage() {
                 toast(n === me.daily_goal ? `🎉 Daily target hit! ${n} listings` : l.grade === "hot" ? `🔥 Hot lead! Score ${l.score}. Listing #${n} today` : `✅ Saved! Listing #${n} today`);
               } else { toast("💾 Changes saved"); if (l.status === "won") confetti(true); go("sheet"); }
             }} />}
-          {tab === "sheet" && <Sheet me={me} members={members} listings={listings} onOpen={open} onDelete={async l => {
+          {tab === "sheet" && <Sheet log={d => log("download", undefined, d)} me={me} members={members} listings={listings} onOpen={open} onDelete={async l => {
             if (!confirm(`Remove "${l.title || l.link}" from the sheet? (It stays safe in the database.)`)) return;
             try { await api(`/api/scout/listings?id=${l.id}`, { method: "DELETE" }); setData(d => d && ({ ...d, listings: d.listings.filter(x => x.id !== l.id) })); toast("Listing removed"); } catch (e) { toast((e as Error).message, "err"); }
           }} />}
-          {tab === "leads" && me.is_admin && <AdminLeads members={members} listings={listings} onOpen={open} />}
+          {tab === "leads" && me.is_admin && <AdminLeads api={api} members={members} listings={listings} onOpen={open} onChanged={upsert} toast={toast} log={d => log("download", undefined, d)} />}
           {tab === "pitches" && <Pitches api={api} members={members} listings={listings} onOpen={open} toast={toast} onChanged={l => { upsert(l); if (l.status === "won") confetti(true); }} />}
           {tab === "markets" && <Markets listings={listings} />}
           {tab === "guide" && <Guide />}

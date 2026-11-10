@@ -17,18 +17,24 @@ export const gradeBadge = (g: string) => g === "hot" ? "bg-door text-night" : g 
 export function useStats(listings: Listing[], members: Member[]) {
   return useMemo(() => {
     const day = startOfDay(), week = startOfWeek();
+    const isReady = (l: Listing) => l.ready ?? leadReadiness(l).complete;
     const per = members.map((m, i) => {
       const mine = listings.filter(l => l.added_by === m.id);
+      const done = mine.filter(isReady);
       return {
         ...m, i, total: mine.length,
+        ready: done.length,
+        readyWeek: done.filter(l => new Date(l.created_at).getTime() >= week).length,
         today: mine.filter(l => new Date(l.created_at).getTime() >= day).length,
         week: mine.filter(l => new Date(l.created_at).getTime() >= week).length,
         hot: mine.filter(l => l.grade === "hot").length,
       };
     });
     return {
-      per, ranked: [...per].sort((a, b) => b.week - a.week || b.total - a.total),
+      // Complete leads count, not just uploads: quality beats speed.
+      per, ranked: [...per].sort((a, b) => b.readyWeek - a.readyWeek || b.ready - a.ready || b.week - a.week),
       total: listings.length,
+      ready: listings.filter(isReady).length,
       hot: listings.filter(l => l.grade === "hot").length,
       contacted: listings.filter(l => ["contacted", "replied", "call", "won"].includes(l.status)).length,
       won: listings.filter(l => l.status === "won").length,
@@ -46,7 +52,7 @@ export function Dashboard({ me, members, listings, onOpen, onAdd }: { me: Member
   const nameOf = (id: string) => members.find(m => m.id === id)?.name ?? "?";
   const hot = listings.filter(l => l.link && ["new", "drafted"].includes(l.status)).sort((a, b) => b.score - a.score).slice(0, 6);
   const byCountry = COUNTRIES.map(c => ({ c, n: listings.filter(l => marketById(l.market)?.country === c).length })).filter(x => x.n || x.c !== "Other");
-  const maxWeek = Math.max(1, ...st.per.map(p => p.week));
+  const maxWeek = Math.max(1, ...st.per.map(p => p.readyWeek));
 
   return (
     <div className="grid gap-4 lg:grid-cols-3">
@@ -67,7 +73,7 @@ export function Dashboard({ me, members, listings, onOpen, onAdd }: { me: Member
       </Card>
 
       <div className="grid grid-cols-2 gap-3">
-        {([["Total listings", st.total, "📋"], ["Hot leads", st.hot, "🔥"], ["Contacted", st.contacted, "✉️"], ["Deals", st.won, "🏆"]] as const).map(([l, v, e], i) => (
+        {([["Total listings", st.total, "📋"], ["Ready leads", st.ready, "✅"], ["Contacted", st.contacted, "✉️"], ["Deals", st.won, "🏆"]] as const).map(([l, v, e], i) => (
           <Card key={l} delay={80 + i * 60} className="!p-4">
             <div className="text-2xl">{e}</div>
             <div className="mt-1 text-3xl font-black tabular-nums"><CountUp value={v} /></div>
@@ -77,7 +83,7 @@ export function Dashboard({ me, members, listings, onOpen, onAdd }: { me: Member
       </div>
 
       <Card className="lg:col-span-2" delay={200}>
-        <H right={<span className="text-xs text-mist/70">This week&apos;s ranking</span>}>🏆 Team leaderboard</H>
+        <H right={<span className="text-xs text-mist/70">Ranked by complete leads this week</span>}>🏆 Team leaderboard</H>
         <ul className="space-y-3">
           {st.ranked.map((p, rank) => (
             <li key={p.id} className="scout-rise flex items-center gap-3" style={{ animationDelay: `${250 + rank * 80}ms` }}>
@@ -86,10 +92,10 @@ export function Dashboard({ me, members, listings, onOpen, onAdd }: { me: Member
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2 text-sm">
                   <b className={p.id === me.id ? "text-door" : ""}>{p.name}{p.id === me.id && " (you)"}</b>
-                  <span className="text-xs text-mist"><b className="text-bone">{p.week}</b> this week · {p.today} today · {p.total} total · {p.hot} 🔥</span>
+                  <span className="text-xs text-mist"><b className="text-emerald-300">{p.readyWeek} ✅</b> this week · {p.week} added · {p.ready}/{p.total} complete</span>
                 </div>
                 <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-white/5">
-                  <div className={`scout-bar h-full rounded-full bg-gradient-to-r ${rank === 0 ? "from-door-deep to-door-hi" : "from-pool-deep to-pool"}`} style={{ width: `${(p.week / maxWeek) * 100}%` }} />
+                  <div className={`scout-bar h-full rounded-full bg-gradient-to-r ${rank === 0 ? "from-door-deep to-door-hi" : "from-pool-deep to-pool"}`} style={{ width: `${(p.readyWeek / maxWeek) * 100}%` }} />
                 </div>
               </div>
             </li>
@@ -173,7 +179,8 @@ const COLS: [string, string, (l: Listing, names: (id: string) => string) => stri
   ["Notes", "notes", l => l.notes ?? ""],
 ];
 
-export function exportCsv(rows: Listing[], members: Member[], name = "hostly-scout") {
+export function exportCsv(rows: Listing[], members: Member[], name = "hostly-scout", log?: (detail: string) => void) {
+  log?.(`${name}: ${rows.length} rows`);
   const names = (id: string) => members.find(m => m.id === id)?.name ?? "";
   const esc = (v: unknown) => { const s = String(v ?? ""); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
   const csv = [COLS.map(c => c[0]).join(","), ...rows.map(r => COLS.map(c => esc(c[2](r, names))).join(","))].join("\r\n");
@@ -185,7 +192,7 @@ export function exportCsv(rows: Listing[], members: Member[], name = "hostly-sco
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
-export function Sheet({ me, members, listings, onOpen, onDelete }: { me: Member; members: Member[]; listings: Listing[]; onOpen: (l: Listing) => void; onDelete: (l: Listing) => void }) {
+export function Sheet({ me, members, listings, onOpen, onDelete, log }: { me: Member; members: Member[]; listings: Listing[]; onOpen: (l: Listing) => void; onDelete: (l: Listing) => void; log?: (detail: string) => void }) {
   const [q, setQ] = useState("");
   const [country, setCountry] = useState("");
   const [market, setMarket] = useState("");
@@ -196,7 +203,7 @@ export function Sheet({ me, members, listings, onOpen, onDelete }: { me: Member;
   const nameOf = (id: string) => members.find(m => m.id === id)?.name ?? "?";
   const rows = useMemo(() => {
     const t = q.trim().toLowerCase();
-    return listings.filter(l => l.link && (me.is_admin || l.added_by === me.id)).filter(l =>
+    return listings.filter(l => l.link && (me.is_admin || l.added_by === me.id || l.assigned_to === me.id)).filter(l =>
       (!t || [l.title, l.host_name, l.link, l.notes].some(x => String(x ?? "").toLowerCase().includes(t))) &&
       (!country || marketById(l.market)?.country === country) && (!market || l.market === market) &&
       (!by || l.added_by === by) && (!grade || l.grade === grade) && (!status || l.status === status),
@@ -206,7 +213,7 @@ export function Sheet({ me, members, listings, onOpen, onDelete }: { me: Member;
 
   return (
     <Card>
-      <H right={me.is_admin ? <button onClick={() => exportCsv(rows, members)} className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-black text-emerald-950 transition hover:brightness-110">⬇️ Download Excel ({rows.length})</button> : <span className="text-xs text-mist/70">🔒 Only Yahya can download</span>}>{me.is_admin ? "📋 All listings" : "📋 My listings"}</H>
+      <H right={me.is_admin ? <button onClick={() => exportCsv(rows, members, "hostly-scout", log)} className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-black text-emerald-950 transition hover:brightness-110">⬇️ Download Excel ({rows.length})</button> : <span className="text-xs text-mist/70">🔒 Only Yahya can download</span>}>{me.is_admin ? "📋 All listings" : "📋 My listings"}</H>
       <div className="mb-3 flex flex-wrap gap-2">
         <input className="scout-input max-w-xs text-xs" placeholder="🔍 Title, host, link…" value={q} onChange={e => setQ(e.target.value)} />
         <select className={sel} value={country} onChange={e => { setCountry(e.target.value); setMarket(""); }}><option value="">All countries</option>{COUNTRIES.map(c => <option key={c}>{c}</option>)}</select>
@@ -235,7 +242,7 @@ export function Sheet({ me, members, listings, onOpen, onDelete }: { me: Member;
                 <td className="px-2 text-xs">{nameOf(l.added_by)}</td>
                 <td className="px-2"><Ready l={l} /></td>
                 <td className="px-2"><span className={`rounded-full px-2 py-0.5 text-[11px] font-bold text-white ${statusOf(l.status).color}`}>{statusOf(l.status).label}</span></td>
-                <td className="px-2 text-right">{(l.added_by === me.id || me.is_admin) && <button title="Remove" onClick={e => { e.stopPropagation(); onDelete(l); }} className="rounded px-2 py-1 text-mist/70 hover:bg-red-500/20 hover:text-red-300">🗑</button>}</td>
+                <td className="px-2 text-right">{((l.added_by === me.id && !l.locked) || me.is_admin) && <button title="Remove" onClick={e => { e.stopPropagation(); onDelete(l); }} className="rounded px-2 py-1 text-mist/70 hover:bg-red-500/20 hover:text-red-300">🗑</button>}</td>
               </tr>
             ))}
           </tbody>
@@ -260,7 +267,8 @@ export function Sheet({ me, members, listings, onOpen, onDelete }: { me: Member;
 // ✅ ready for outreach, or what is still missing.
 export function Ready({ l }: { l: Listing }) {
   const r = leadReadiness(l);
-  return r.complete
+  if (l.locked) return <span data-testid="locked" title="Complete lead: handed to Yahya" className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-bold text-emerald-300">🔒 Complete · handed over</span>;
+  return r.complete || l.ready
     ? <span data-testid="ready" className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-bold text-emerald-300">✅ Ready</span>
     : <span data-testid="missing" title={`Missing: ${r.missing.join(", ")}`} className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold text-amber-300">⚠️ Missing: {r.missing.join(", ")}</span>;
 }
