@@ -92,7 +92,7 @@ export const SCAN_SCHEMA = {
       },
     },
     checks: CHECK_SCHEMA,
-    problems: { type: "array", items: { type: "string", enum: PROBLEMS.map(p => p.id) }, description: "Every problem id you flagged as yes in checks, plus any number-based problem you can see" },
+    problems: { type: "array", items: { type: "string" }, description: "Every problem id (from the problem list in the instructions) you flagged as yes in checks, plus any number-based problem you can see" },
     other_problems: { type: "array", items: { type: "string" }, description: "Other specific weaknesses you can see, short phrases in English, max 4" },
     review_praise: { type: "array", items: { type: "string" }, description: "What guests praise in the visible reviews, max 4 short phrases" },
     review_complaints: { type: "array", items: { type: "string" }, description: "What guests complain about in the visible reviews, max 4 short phrases" },
@@ -155,6 +155,16 @@ export function problemsFromScan(r: Record<string, any>): string[] {
   return Array.from(out);
 }
 
+export const schemaRefused = (m: string) => /schema|grammar|complex|output_config|format|json/i.test(m ?? "");
+
+// Reads the JSON object out of a reply, also when the model wraps it in a code fence or a sentence.
+export function parseJsonReply(text: string): Record<string, any> {
+  try { return JSON.parse(text); } catch { /* fall through */ }
+  const a = text.indexOf("{"), b = text.lastIndexOf("}");
+  if (a < 0 || b <= a) throw new Error("no JSON");
+  return JSON.parse(text.slice(a, b + 1));
+}
+
 export type ScanImage = { type?: string; data?: string };
 
 export async function scanListingImages(input: ScanImage[]) {
@@ -168,13 +178,7 @@ export async function scanListingImages(input: ScanImage[]) {
     return { type: "image" as const, source: { type: "base64" as const, media_type: type, data } };
   });
   const client = new Anthropic({ apiKey: env.anthropicKey });
-  const msg = await client.beta.messages.create({
-    model: process.env.SCOUT_SCAN_MODEL || "claude-sonnet-5-5",
-    max_tokens: 8000,
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
-    output_config: { effort: "medium", format: { type: "json_schema", schema: SCAN_SCHEMA } },
-    system: [
+  const system = [
       "You help a short-term rental co-hosting team audit listings before outreach.",
       "You get screenshots, phone photos, or frames from a screen recording of ONE listing page (Airbnb, Vrbo or Booking), from several parts of the page. Frames can overlap or repeat; combine them into one audit.",
       "A calendar where most dates are crossed out means it is mostly booked: if the price also looks low for the area, flag price_off as likely underpriced.",
@@ -189,14 +193,29 @@ export async function scanListingImages(input: ScanImage[]) {
       "In checks, give a verdict for EVERY problem: yes when the images show it, no when they show it is fine, not_visible only when that part of the listing is not in any image. Judge like a strict professional listing auditor: photos, cover photo, title and description are judgement calls, so give your honest opinion instead of not_visible whenever you can see them.",
       "Read the calendar carefully (open vs crossed-out dates), the price breakdown (nightly price, cleaning fee, service fee), the booking button (Reserve vs Request to book) and the host profile (Lives in…, other listings and their ratings).",
       "Rating, reviews, photo count, prices, minimum nights, response rate and host listings are checked by code too, so report the numbers accurately.",
-    ].join(" "),
+    ].join(" ");
+  const ask = (strict: boolean) => client.beta.messages.create({
+    model: process.env.SCOUT_SCAN_MODEL || "claude-sonnet-5-5",
+    max_tokens: 8000,
+    betas: ["server-side-fallback-2026-07-01"],
+    fallbacks: "default",
+    output_config: strict ? { effort: "medium", format: { type: "json_schema", schema: SCAN_SCHEMA } } : { effort: "medium" },
+    system: strict ? system : `${system} Reply with ONLY one JSON object (no other text) that matches this JSON schema: ${JSON.stringify(SCAN_SCHEMA)}`,
     messages: [{ role: "user", content: [...blocks, { type: "text", text: "Fill in the listing audit from these images." }] }],
   });
+  let msg;
+  try { msg = await ask(true); } catch (e) {
+    // If the API refuses the strict schema (too complex to compile, or a format change), ask for plain JSON instead
+    // so the scan still works.
+    if (!(e instanceof Anthropic.BadRequestError) || !schemaRefused(e.message)) throw e;
+    console.warn("scan: strict schema refused, retrying with plain JSON:", e.message);
+    msg = await ask(false);
+  }
   if (msg.stop_reason === "refusal") throw new HttpError(422, "The AI couldn't read these images. Try other screenshots.");
   if (msg.stop_reason === "max_tokens") throw new HttpError(502, "The AI reply was cut off. Try again.");
   const text = msg.content.map(c => (c.type === "text" ? c.text : "")).join("");
   let r: Record<string, any>;
-  try { r = JSON.parse(text); } catch { throw new HttpError(502, "Couldn't read the AI reply. Try again."); }
+  try { r = parseJsonReply(text); } catch { throw new HttpError(502, "Couldn't read the AI reply. Try again."); }
   // Prices from real calendar dates beat the model's own guess.
   const p = pricesFromQuotes(r.price_quotes);
   if (p.weekday !== null) r.weekday_price = p.weekday;

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Anthropic from "@anthropic-ai/sdk";
 import { errorResponse, HttpError } from "@/lib/server/auth";
 import { aiReady } from "@/lib/server/env";
@@ -15,7 +16,11 @@ export async function POST(req: Request) {
     const b = (await req.json().catch(() => ({}))) as { images?: { type?: string; data?: string }[] };
     return Response.json({ result: await scanListingImages(b.images ?? []) });
   } catch (e) {
-    if (e instanceof Anthropic.APIError) return Response.json({ error: e.status === 401 ? "The Anthropic API key is wrong" : `Couldn't reach the AI (${e.status ?? "network"})` }, { status: 502 });
+    if (e instanceof Anthropic.APIError) {
+      console.error("scan: AI error", e.status, e.message);
+      const why = e.status === 400 ? `: ${String((e as any).error?.error?.message ?? e.message).slice(0, 140)}` : "";
+      return Response.json({ error: e.status === 401 ? "The Anthropic API key is wrong" : `Couldn't reach the AI (${e.status ?? "network"})${why}` }, { status: 502 });
+    }
     return errorResponse(e);
   }
 }

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { autoProblems, buildPitch, linkKey, scoreListing, solutionsText } from "@/lib/scout/catalog";
 import { hashPin, pinMatches } from "@/lib/scout/server";
-import { CHECKS, marketFromPlace, pricesFromQuotes, problemsFromScan, SCAN_SCHEMA } from "@/lib/scan/listing";
+import { CHECKS, marketFromPlace, pricesFromQuotes, problemsFromScan, parseJsonReply, SCAN_SCHEMA, schemaRefused } from "@/lib/scan/listing";
 import { contactLinks, pickFrames } from "@/app/scout/scanner";
 import { cleanFound, cleanPlatforms, CONTACT_SCHEMA, contactBrief } from "@/lib/scan/contact";
 
@@ -48,7 +48,15 @@ test.describe("scout", () => {
 
   test("the screenshot scanner asks for every field it describes", () => {
     expect([...SCAN_SCHEMA.required].sort()).toEqual(Object.keys(SCAN_SCHEMA.properties).sort());
-    expect(SCAN_SCHEMA.properties.problems.items.enum).toContain("weak_cover");
+    expect(SCAN_SCHEMA.properties.problems.items.type).toBe("string");
+  });
+
+  test("the scanner falls back to plain JSON when the strict schema is refused", () => {
+    expect(schemaRefused("Schema is too complex for compilation.")).toBe(true);
+    expect(schemaRefused("messages: image too large")).toBe(false);
+    expect(parseJsonReply('{"a":1}')).toEqual({ a: 1 });
+    expect(parseJsonReply('Here it is:\n```json\n{"a":{"b":2}}\n```')).toEqual({ a: { b: 2 } });
+    expect(() => parseJsonReply("no json")).toThrow();
   });
 
   test("the scanner judges every non-number problem and turns verdicts into ticks", () => {
