@@ -25,9 +25,13 @@ run -f supabase/migrations/0001_hostly_core.sql
 run -f supabase/migrations/0001_hostly_core.sql
 run -f supabase/migrations/0002_calendar_urls.sql
 run -f supabase/migrations/0002_calendar_urls.sql
+run -f supabase/migrations/0004_scout.sql
+run -f supabase/migrations/0004_scout.sql
 run -f supabase/tests/hostly_core_test.sql
+run -f supabase/rollback/0004_scout_down.sql
 run -f supabase/rollback/0002_calendar_urls_down.sql
 run -f supabase/rollback/0001_hostly_core_down.sql
 run -f supabase/migrations/0001_hostly_core.sql
 run -f supabase/migrations/0002_calendar_urls.sql
+run -f supabase/migrations/0004_scout.sql
 echo "rollback and re-apply OK"

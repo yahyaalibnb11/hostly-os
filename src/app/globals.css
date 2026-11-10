@@ -6,3 +6,36 @@
 body { margin: 0; background: #11100f; color: #f4f0eb; font-family: Arial, Helvetica, sans-serif; }
 button, input, select, textarea { font: inherit; }
 ::selection { background: #c87945; color: #11100f; }
+
+/* ---------- Hostly Scout motion ---------- */
+@keyframes scout-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes scout-pop { 0% { transform: scale(.6); opacity: 0; } 70% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes scout-shake { 0%,100% { transform: none; } 20%,60% { transform: translateX(-6px); } 40%,80% { transform: translateX(6px); } }
+@keyframes scout-glow { 0%,100% { box-shadow: 0 0 0 0 rgba(255,179,71,.55); } 50% { box-shadow: 0 0 0 8px rgba(255,179,71,0); } }
+@keyframes scout-shine { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+@keyframes scout-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes scout-toast { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.scout-rise { animation: scout-rise .5s cubic-bezier(.2,.8,.2,1) both; }
+.scout-pop { animation: scout-pop .45s cubic-bezier(.2,.8,.2,1) both; }
+.scout-shake { animation: scout-shake .45s ease both; }
+.scout-glow { animation: scout-glow 1.8s ease-in-out infinite; }
+.scout-float { animation: scout-float 3.5s ease-in-out infinite; }
+.scout-toast { animation: scout-toast .35s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes scout-scan { 0% { top: -24px; } 100% { top: 100%; } }
+.scout-scanline { background: linear-gradient(180deg, transparent, rgba(70,194,180,.8), transparent); animation: scout-scan 1.4s ease-in-out infinite; }
+.scout-shine { background: linear-gradient(90deg, #FFB347, #FFE6B8, #E8892B, #FFB347); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: scout-shine 6s linear infinite; }
+.scout-bg { background: radial-gradient(900px 520px at 50% 115%, rgba(255,179,71,.16), transparent 65%), radial-gradient(1000px 500px at 0% -10%, rgba(35,44,59,.9), transparent 60%), #0B0F16; min-height: 100vh; color: #E9E4DA; font-family: "Instrument Sans", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+.scout-bg h1, .scout-bg h2, .scout-bg h3, .scout-display { font-family: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif; letter-spacing: -.02em; }
+.scout-bg ::selection { background: #FFB347; color: #0B0F16; }
+.scout-locked { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.scout-locked input, .scout-locked textarea, .scout-locked select { -webkit-user-select: text; user-select: text; }
+@media print { .scout-locked { display: none !important; } }
+.scout-card { background: #121824; border: 1px solid #232C3B; border-radius: 18px; }
+.scout-input { width: 100%; min-width: 0; border-radius: 10px; background: #0B0F16; border: 1px solid #232C3B; padding: .55rem .75rem; color: #E9E4DA; transition: border-color .2s, box-shadow .2s; }
+.scout-input:focus { outline: none; border-color: #FFB347; box-shadow: 0 0 0 3px rgba(255,179,71,.22); }
+.scout-input option, .scout-input optgroup { background: #121824; color: #E9E4DA; }
+.scout-bar { transition: width 1s cubic-bezier(.2,.8,.2,1); }
+@media (prefers-reduced-motion: reduce) {
+  .scout-rise, .scout-pop, .scout-shake, .scout-glow, .scout-float, .scout-toast, .scout-shine, .scout-scanline { animation: none !important; }
+  .scout-bar { transition: none; }
+}
