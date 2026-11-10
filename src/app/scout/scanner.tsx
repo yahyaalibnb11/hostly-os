@@ -15,7 +15,11 @@ const MAX_SHOTS = 20; // 8 screenshots, or up to 20 frames from a video
 const MAX_EDGE = 1600;
 const MAX_VIDEO_SECONDS = 60;
 const FRAME_EDGE = 1400;
-const BUDGET = 3_800_000; // the server takes ~4.5 MB per request, keep room for JSON
+// Vercel refuses a request over ~4.5 MB (error 413). The images travel as base64 text, which is a third
+// bigger than the file, so the budget counts base64 characters and keeps room for the rest of the request.
+const BUDGET = 3_500_000;
+const SQUEEZE: [number, number][] = [[0.6, 1300], [0.5, 1100], [0.42, 950], [0.35, 800], [0.3, 680]];
+export const payloadSize = (list: { data: string }[]) => list.reduce((a, s) => a + s.data.length, 0);
 
 // Shrink a photo in the browser so uploads stay small and fast on mobile data.
 async function shrink(file: Blob, quality = 0.82, edge = MAX_EDGE): Promise<Omit<Shot, "id">> {
@@ -180,10 +184,12 @@ export function ScreenshotScanner({ api, ai, onResult, toast }: { api: Api; ai: 
     setBusy(true); setStep(0); setResult(null);
     try {
       let list = shots;
-      if (list.reduce((a, s) => a + s.bytes, 0) > BUDGET) {
-        // Too big for one request: squeeze harder before sending.
-        list = await Promise.all(list.map(async s => ({ ...s, ...(await shrink(await (await fetch(s.url)).blob(), 0.55, 1200)) })));
+      // Too big for one request: squeeze step by step until it fits.
+      for (const [q, edge] of SQUEEZE) {
+        if (payloadSize(list) <= BUDGET) break;
+        list = await Promise.all(shots.map(async s => ({ ...s, ...(await shrink(await (await fetch(s.url)).blob(), q, edge)) })));
       }
+      if (payloadSize(list) > BUDGET) throw new Error("Too many or too large images. Remove a few and scan again.");
       const r = await api("/api/scout/scan", { body: { images: list.map(s => ({ type: s.type, data: s.data })) } });
       setResult(r.result); onResult(r.result);
       setShots([]); // ready for the next listing
